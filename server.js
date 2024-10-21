@@ -125,7 +125,7 @@ app.post('/api/addcard', async (req, res, next) => {
   var error = '';
 
   try {
-    const db = client.db();
+    const db = client.db('COP4331Cards');
     const result = db.collection('Cards').insertOne(newCard);
   }
   catch (e) {
@@ -147,7 +147,7 @@ app.post('/api/login', async (req, res, next) => {
 
   const { login, password } = req.body;
 
-  const db = client.db();
+  const db = client.db('COP4331Cards');
   const results = await db.collection('Users').find({ Login: login, Password: password }).toArray();
 
   var id = -1;
