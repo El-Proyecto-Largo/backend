@@ -34,6 +34,7 @@ app.post('/api/makepost', async (req, res, next) => {
     error = e.toString();
   }
 
+
   var ret = { error: error };
   res.status(200).json(ret);
 });
