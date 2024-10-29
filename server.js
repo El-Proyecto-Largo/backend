@@ -132,7 +132,6 @@ app.post('/api/addcard', async (req, res, next) => {
     error = e.toString();
   }
 
-  cardList.push(card);
 
   var ret = { error: error };
   res.status(200).json(ret);
