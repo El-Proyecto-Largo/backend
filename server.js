@@ -34,11 +34,103 @@ app.post('/api/makepost', async (req, res, next) => {
     error = e.toString();
   }
 
+  // add catch for format mismatch
 
   var ret = { error: error };
   res.status(200).json(ret);
 });
 
+
+app.post('/api/searchposts', async (req, res, next) => {
+  // incoming: title, body, authorId, tags
+  // outgoing: title, body, image, latitude, longitude, authorId, tags
+  // Full match is necessary - need to add partial matching
+
+  var error = '';
+
+  const { title, body, authorId, tags } = req.body;
+
+  const db = client.db('Overcastly');
+  const results = await db.collection('Posts').find({ title: title, body: body, authorId: authorId, tags: tags }).toArray();
+
+  var outId = -1;
+  var outTitle = '';
+  var outBody = '';
+  var outImage = -1;
+  var outLat = -1;
+  var outLong = -1;
+  var outTags = -1;
+
+  var ret = [];
+
+  for (let i = 0; i < results.length; i++)
+    {
+      outId = results[i].authorId;
+      outTitle = results[i].title;
+      outBody = results[i].body;
+      outImage = results[i].image;
+      outLat = results[i].latitude;
+      outLong = results[i].longitude;
+      outTags = results[i].tags;
+  
+      ret.push({ title: outTitle, body: outBody, image: outImage, latitude: outLat, authorId: outId, longitude: outLong, tags: outTags, error: '' });
+    }
+
+  if (results.length == 0)
+  {
+    var ret = { error: 'No matching posts found' };
+  }
+  
+  res.status(200).json(ret);
+});
+
+app.post('/api/findlocalposts', async (req, res, next) => {
+  // incoming: latitude, longitude, distance
+  // outgoing: title, body, image, latitude, longitude, authorId, tags
+  // returns array of posts within distance of latitude and longitude
+
+  var error = '';
+
+  const { latitude, longitude, distance } = req.body;
+
+  const db = client.db('Overcastly');
+  const results = await db.collection('Posts').find({ }).toArray();
+
+  var outId = -1;
+  var outTitle = '';
+  var outBody = '';
+  var outImage = -1;
+  var outLat = -1;
+  var outLong = -1;
+  var outTags = -1;
+
+  var ret = [];
+
+  for (let i = 0; i < results.length; i++)
+  {
+    var calcDistance = Math.sqrt( (results[i].latitude - latitude)**2 + (results[i].longitude - longitude)**2 )
+
+    if (calcDistance > distance || !(results[i].hasOwnProperty('latitude') &&  results[i].hasOwnProperty('longitude')))
+      continue;
+
+    outId = results[i].authorId;
+    outTitle = results[i].title;
+    outBody = results[i].body;
+    outImage = results[i].image;
+    outLat = results[i].latitude;
+    outLong = results[i].longitude;
+    outTags = results[i].tags;
+
+    ret.push({ title: outTitle, body: outBody, image: outImage, latitude: outLat, authorId: outId, longitude: outLong, tags: outTags, error: '' });
+  }
+
+  if (ret.length == 0)
+  {
+    var ret = { error: 'No matching posts found' }
+  }
+  
+  res.status(200).json(ret);
+});
 
 
 
