@@ -44,14 +44,27 @@ app.post('/api/makepost', async (req, res, next) => {
 app.post('/api/searchposts', async (req, res, next) => {
   // incoming: title, body, authorId, tags
   // outgoing: title, body, image, latitude, longitude, authorId, tags
-  // Full match is necessary - need to add partial matching
+  // Partial matching w/ regex
 
   var error = '';
 
   const { title, body, authorId, tags } = req.body;
 
   const db = client.db('Overcastly');
-  const results = await db.collection('Posts').find({ title: title, body: body, authorId: authorId, tags: tags }).toArray();
+  var results = [];
+  const resultsBody = await db.collection('Posts').find({ $or: [{title: { $regex: title.trim() + '.*', $options: 'i' }},
+              {body: { $regex: body.trim() + '.*', $options: 'i' }}, { authorId : authorId }] }).toArray();
+
+  const resultsTags = await db.collection('Posts').find({ tags : tags }).toArray();
+
+  if (tags.length > 0)
+  {
+    results = resultsBody.concat(resultsTags);
+  }
+  else
+  {
+    results = resultsBody;
+  }
 
   var outId = -1;
   var outTitle = '';
