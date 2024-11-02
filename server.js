@@ -34,13 +34,11 @@ app.post('/api/makepost', async (req, res, next) => {
   
   let error = '';
 
-  try
-  {
+  try {
     const db = client.db('Overcastly');
     const result = db.collection('Posts').insertOne(newPost);
   }
-  catch (e)
-  {
+  catch (e) {
     error = e.toString();
   }
 
@@ -66,12 +64,10 @@ app.post('/api/searchposts', async (req, res, next) => {
 
   const resultsTags = await db.collection('Posts').find({ tags : tags }).toArray();
 
-  if (tags.length > 0)
-  {
+  if (tags.length > 0) {
     results = resultsBody.concat(resultsTags);
   }
-  else
-  {
+  else {
     results = resultsBody;
   }
 
@@ -85,26 +81,26 @@ app.post('/api/searchposts', async (req, res, next) => {
 
   let ret = [];
 
-  for (let i = 0; i < results.length; i++)
-    {
-      outId = results[i].authorId;
-      outTitle = results[i].title;
-      outBody = results[i].body;
-      outImage = results[i].image;
-      outLat = results[i].latitude;
-      outLong = results[i].longitude;
-      outTags = results[i].tags;
-  
-      ret.push({ 
-        title: outTitle, 
-        body: outBody, 
-        image: outImage, 
-        latitude: outLat, 
-        authorId: outId, 
-        longitude: outLong, 
-        tags: outTags, 
-        error: '' });
-    }
+  for (let i = 0; i < results.length; i++) {
+    outId = results[i].authorId;
+    outTitle = results[i].title;
+    outBody = results[i].body;
+    outImage = results[i].image;
+    outLat = results[i].latitude;
+    outLong = results[i].longitude;
+    outTags = results[i].tags;
+
+    ret.push({
+      title: outTitle,
+      body: outBody,
+      image: outImage,
+      latitude: outLat,
+      authorId: outId,
+      longitude: outLong,
+      tags: outTags,
+      error: ''
+    });
+  }
   
   res.status(200).json(ret);
 });
@@ -119,7 +115,7 @@ app.post('/api/findlocalposts', async (req, res, next) => {
   const { latitude, longitude, distance } = req.body;
 
   const db = client.db('Overcastly');
-  const results = await db.collection('Posts').find({ }).toArray();
+  const results = await db.collection('Posts').find({ }).sort([["_id", -1]]).toArray();
 
   let outId = -1;
   let outTitle = '';
@@ -131,11 +127,10 @@ app.post('/api/findlocalposts', async (req, res, next) => {
 
   let ret = [];
 
-  for (let i = 0; i < results.length; i++)
-  {
-    let calcDistance = Math.sqrt( (results[i].latitude - latitude)**2 + (results[i].longitude - longitude)**2 )
+  for (let i = 0; i < results.length; i++) {
+    let calcDistance = Math.sqrt((results[i].latitude - latitude) ** 2 + (results[i].longitude - longitude) ** 2)
 
-    if (calcDistance > distance || !(results[i].hasOwnProperty('latitude') &&  results[i].hasOwnProperty('longitude')))
+    if (calcDistance > distance || !(results[i].hasOwnProperty('latitude') && results[i].hasOwnProperty('longitude')))
       continue;
 
     outId = results[i].authorId;
