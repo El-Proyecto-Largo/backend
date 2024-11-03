@@ -8,6 +8,7 @@ require('dotenv').config()
 const url = process.env.DB_URL;
 const client = new MongoClient(url);
 client.connect();
+const db = client.db("Overcastly");
 
 const app = express();
 app.use(cors());
@@ -35,7 +36,6 @@ app.post('/api/makepost', async (req, res, next) => {
   let error = '';
 
   try {
-    const db = client.db('Overcastly');
     const result = db.collection('Posts').insertOne(newPost);
   }
   catch (e) {
@@ -57,7 +57,7 @@ app.post('/api/searchposts', async (req, res, next) => {
 
   const { title, body, authorId, tags } = req.body;
 
-  const db = client.db('Overcastly');
+  
   let results = [];
   const resultsBody = await db.collection('Posts').find({ $or: [{title: { $regex: title.trim() + '.*', $options: 'i' }},
               {body: { $regex: body.trim() + '.*', $options: 'i' }}, { authorId : authorId }] }).toArray();
@@ -116,7 +116,6 @@ app.post('/api/findlocalposts', async (req, res, next) => {
 
   const { latitude, longitude, distance } = req.body;
 
-  const db = client.db('Overcastly');
   const results = await db.collection('Posts').find({ }).sort([["_id", -1]]).toArray();
 
   let outPostId = -1;
@@ -151,16 +150,15 @@ app.post('/api/findlocalposts', async (req, res, next) => {
   res.status(200).json(ret);
 });
 
-app.post('/api/getreplies', async (req, res, next) => {
+app.get('/api/posts/:_id/replies', async (req, res, next) => {
   // incoming: replyTo (string)
   // outgoing: _id, authorId, body, image
   // returns array of replies to the given post
 
-  // let originId = req.params.replyTo;
-  const { replyTo } = req.body;
+  console.log("replies hit at " + new Date);
 
-  const db = client.db('Overcastly');
-  const results = await db.collection('Posts').find({ replyTo: new ObjectId(replyTo) }).sort([["_id", -1]]).toArray();
+  const postId = req.params._id;
+  const results = await db.collection('Posts').find({ "replyTo": new ObjectId(postId) }).sort([["_id"]]).toArray();
 
   let outAuthorId = -1;
   let outId = -1;
@@ -178,7 +176,7 @@ app.post('/api/getreplies', async (req, res, next) => {
     outBody = results[i].body;
     outImage = results[i].image;
 
-    ret.push({ _id: outId, authorId: outId, body: outBody, image: outImage });
+    ret.push({ _id: outId, authorId: outAuthorId, body: outBody, image: outImage });
   }
   
   res.status(200).json(ret);
@@ -198,8 +196,6 @@ app.post("/api/registeruser", async (req, res, next) => {
   }
 
   try {
-    const db = client.db("Overcastly");
-
     const existingUser = await db.collection("Users").findOne({
       $or: [{ username }, { email }],
     });
@@ -231,13 +227,28 @@ app.post("/api/registeruser", async (req, res, next) => {
   }
 });
 
+app.get("/api/posts/:_id", async (req, res) => {
+  // incoming: post ObjectId (used in url)
+  // outgoing: id, title, body, image, latitude, longitude, authorId, tags
+  try {
+    const postId = req.params._id;
+    const results = await db.collection('Posts').find({"_id" : new ObjectId(postId)}).toArray();
+
+    res.status(200).json(results);
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "ummmmmmmmmmm couldnt get post" });
+  }
+});
+
 // Retrieve user by Id
 app.get("/api/users/:_id", async (req, res, next) => {
   // incoming: user Id
   // outgoing: user info
 
   try {
-    const db = client.db("Overcastly");
+    
     let _id = req.params._id;
 
     let readUser = await db.collection("Users").findOne({ _id: new ObjectId(_id) });
@@ -261,7 +272,6 @@ app.put("/api/updateuser/:_id", async (req, res, next) => {
   // outgoing: success or error
 
   try {
-    const db = client.db("Overcastly");
     let _id = req.params._id;
 
     const { firstName, lastName, email } = req.body;
@@ -312,7 +322,6 @@ app.delete("/api/deleteuser/:_id", async (req, res, next) => {
   // outgoing: success or error
 
   try {
-    const db = client.db("Overcastly");
     let _id = req.params._id;
 
     let delResult = await db.collection("Users").deleteOne({ _id: new ObjectId(_id) });
