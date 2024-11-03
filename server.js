@@ -71,6 +71,7 @@ app.post('/api/searchposts', async (req, res, next) => {
     results = resultsBody;
   }
 
+  let outPostId = -1;
   let outId = -1;
   let outTitle = '';
   let outBody = '';
@@ -82,6 +83,7 @@ app.post('/api/searchposts', async (req, res, next) => {
   let ret = [];
 
   for (let i = 0; i < results.length; i++) {
+    outPostId = results[i]._id;
     outId = results[i].authorId;
     outTitle = results[i].title;
     outBody = results[i].body;
@@ -91,14 +93,14 @@ app.post('/api/searchposts', async (req, res, next) => {
     outTags = results[i].tags;
 
     ret.push({
+      _id: outPostId,
       title: outTitle,
       body: outBody,
       image: outImage,
       latitude: outLat,
       authorId: outId,
       longitude: outLong,
-      tags: outTags,
-      error: ''
+      tags: outTags
     });
   }
   
@@ -107,7 +109,7 @@ app.post('/api/searchposts', async (req, res, next) => {
 
 app.post('/api/findlocalposts', async (req, res, next) => {
   // incoming: latitude, longitude, distance
-  // outgoing: title, body, image, latitude, longitude, authorId, tags
+  // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
 
   let error = '';
@@ -117,6 +119,7 @@ app.post('/api/findlocalposts', async (req, res, next) => {
   const db = client.db('Overcastly');
   const results = await db.collection('Posts').find({ }).sort([["_id", -1]]).toArray();
 
+  let outPostId = -1;
   let outId = -1;
   let outTitle = '';
   let outBody = '';
@@ -133,6 +136,7 @@ app.post('/api/findlocalposts', async (req, res, next) => {
     if (calcDistance > distance || !(results[i].hasOwnProperty('latitude') && results[i].hasOwnProperty('longitude')))
       continue;
 
+    outPostId = results[i]._id;
     outId = results[i].authorId;
     outTitle = results[i].title;
     outBody = results[i].body;
@@ -141,7 +145,40 @@ app.post('/api/findlocalposts', async (req, res, next) => {
     outLong = results[i].longitude;
     outTags = results[i].tags;
 
-    ret.push({ title: outTitle, body: outBody, image: outImage, latitude: outLat, authorId: outId, longitude: outLong, tags: outTags });
+    ret.push({ _id: outPostId, title: outTitle, body: outBody, image: outImage, latitude: outLat, authorId: outId, longitude: outLong, tags: outTags });
+  }
+  
+  res.status(200).json(ret);
+});
+
+app.post('/api/getreplies', async (req, res, next) => {
+  // incoming: replyTo (string)
+  // outgoing: _id, authorId, body, image
+  // returns array of replies to the given post
+
+  // let originId = req.params.replyTo;
+  const { replyTo } = req.body;
+
+  const db = client.db('Overcastly');
+  const results = await db.collection('Posts').find({ replyTo: new ObjectId(replyTo) }).sort([["_id", -1]]).toArray();
+
+  let outAuthorId = -1;
+  let outId = -1;
+  let outBody = '';
+  let outImage = -1;
+
+  let ret = [];
+
+  for (let i = 0; i < results.length; i++) {
+    // if (results[i].replyTo != originId)
+    //   continue;
+
+    outId = results[i]._id;
+    outAuthorId = results[i].authorId;
+    outBody = results[i].body;
+    outImage = results[i].image;
+
+    ret.push({ _id: outId, authorId: outId, body: outBody, image: outImage });
   }
   
   res.status(200).json(ret);
