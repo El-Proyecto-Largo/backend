@@ -31,8 +31,6 @@ app.post('/api/makepost', async (req, res, next) => {
     longitude: longitude, 
     tags: tags 
   };
-  
-  let error = '';
 
   try {
     const db = client.db('Overcastly');
@@ -44,7 +42,7 @@ app.post('/api/makepost', async (req, res, next) => {
 
   // add catch for format mismatch
 
-  let ret = { error: error };
+  let ret = {  };
   res.status(200).json(ret);
 });
 
@@ -151,16 +149,22 @@ app.post('/api/findlocalposts', async (req, res, next) => {
   res.status(200).json(ret);
 });
 
-app.post('/api/getreplies', async (req, res, next) => {
+app.post('/api/getreplies/:_id', async (req, res, next) => {
   // incoming: replyTo (string)
   // outgoing: _id, authorId, body, image
   // returns array of replies to the given post
 
   // let originId = req.params.replyTo;
+  let _id = req.params._id;
   const { replyTo } = req.body;
 
   const db = client.db('Overcastly');
-  const results = await db.collection('Posts').find({ replyTo: new ObjectId(replyTo) }).sort([["_id", -1]]).toArray();
+  const originalPost = await db.collection('Posts').findOne(_id.ObjectId);
+  const results = await db.collection('Posts').find({ replyTo: new ObjectId(_id) }).sort([["_id", -1]]).toArray();
+
+  if (!originalPost) {
+    return res.status(404).json({ error: "No original post for replies to refer to." });
+  }
 
   let outAuthorId = -1;
   let outId = -1;
@@ -168,6 +172,7 @@ app.post('/api/getreplies', async (req, res, next) => {
   let outImage = -1;
 
   let ret = [];
+  ret.push({ _id: originalPost._id, authorId: originalPost.authorId, title: originalPost.title, image: originalPost.image, body: originalPost.body, latitude: originalPost.latitude, longitude: originalPost.longitude });
 
   for (let i = 0; i < results.length; i++) {
     // if (results[i].replyTo != originId)
@@ -185,6 +190,59 @@ app.post('/api/getreplies', async (req, res, next) => {
 });
 
 
+app.put("/api/updatepost/:_id", async (req, res, next) => { // /:_id
+  // incoming: new post data
+  // outgoing: success or error
+
+  try {
+    const db = client.db("Overcastly");
+    let _id = req.params._id;
+
+    const { title, body, image, latitude, longitude, tags } = req.body;
+
+    if (!title && !body && !image && !latitude && !longitude && !tags) {
+      return res.status(400).json({ error: "No fields provided :(" });
+    }
+
+    let readPost = await db.collection("Posts").findOne(_id.ObjectId);
+
+    if (!readPost) {
+      return res.status(404).json({ error: "Post not found :(" });
+    }
+
+    const result = await db.collection("Posts").updateOne(
+      { _id: new ObjectId(_id) }, // searching for a specific id syntax
+      { $set: req.body }
+    );
+
+    return res.status(200).json({});
+
+  } catch (error) {
+    return res.status(500).json({ error: "Failure to update a post" });
+  }
+});
+
+// Delete post by id
+app.delete("/api/deletepost/:_id", async (req, res, next) => {
+  // incoming: post Id
+  // outgoing: success or error
+
+  try {
+    const db = client.db("Overcastly");
+    let _id = req.params._id;
+
+    let delResult = await db.collection("Posts").deleteOne({ _id: new ObjectId(_id) });
+
+    if (delResult.deletedCount === 0) {
+      return res.status(404).json({ error: "Could not delete - post does not exist" });
+    }
+
+    return res.status(200).json({ message: "Post successfully deleted"});
+
+  } catch (e) {
+    return res.status(500).json({ error: "Failed to delete post" });
+  }
+});
 
 // User registration
 app.post("/api/registeruser", async (req, res, next) => {
