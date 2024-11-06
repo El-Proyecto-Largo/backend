@@ -46,6 +46,32 @@ app.post('/api/makepost', async (req, res, next) => {
   res.status(200).json(ret);
 });
 
+app.post('/api/makereply', async (req, res, next) => {
+  // incoming: title, body, image, authorId, originalPostId
+  // outgoing: error
+
+  const {title, body, image, authorId, originalPostId} = req.body;
+
+  const newPost = {
+    title: title, 
+    body: body, 
+    image: image, 
+    authorId: authorId, 
+    replyTo: originalPostId
+  };
+
+  try {
+    const result = db.collection('Posts').insertOne(newPost);
+  } catch (e) {
+    error = e.toString();
+  }
+
+  // add catch for format mismatch
+
+  let ret = {  };
+  res.status(200).json(ret);
+});
+
 app.post('/api/searchposts', async (req, res, next) => {
   // incoming: title, body, authorId, tags
   // outgoing: title, body, image, latitude, longitude, authorId, tags
@@ -147,7 +173,7 @@ app.post('/api/findlocalposts', async (req, res, next) => {
   res.status(200).json(ret);
 });
 
-app.get('/api/posts/:_id/replies', async (req, res, next) => {
+app.get('/api/posts/:_id/getthread', async (req, res, next) => {
   // incoming: _id
   // outgoing: _id, authorId, body, image
   // returns array of replies to the given post
@@ -156,7 +182,7 @@ app.get('/api/posts/:_id/replies', async (req, res, next) => {
 
   const _id = req.params._id;
   const originalPost = await db.collection('Posts').findOne(_id.ObjectId);
-  const results = await db.collection('Posts').find({ replyTo: new ObjectId(_id) }).sort([["_id", -1]]).toArray();
+  const replies = await db.collection('Posts').find({ replyTo: new ObjectId(_id) }).sort([["_id", -1]]).toArray();
 
   if (!originalPost) {
     return res.status(404).json({ error: "No original post for replies to refer to." });
@@ -170,14 +196,14 @@ app.get('/api/posts/:_id/replies', async (req, res, next) => {
   let ret = [];
   ret.push({ _id: originalPost._id, authorId: originalPost.authorId, title: originalPost.title, image: originalPost.image, body: originalPost.body, latitude: originalPost.latitude, longitude: originalPost.longitude });
 
-  for (let i = 0; i < results.length; i++) {
+  for (let i = 0; i < replies.length; i++) {
     // if (results[i].replyTo != originId)
     //   continue;
 
-    outId = results[i]._id;
-    outAuthorId = results[i].authorId;
-    outBody = results[i].body;
-    outImage = results[i].image;
+    outId = replies[i]._id;
+    outAuthorId = replies[i].authorId;
+    outBody = replies[i].body;
+    outImage = replies[i].image;
 
     ret.push({ _id: outId, authorId: outAuthorId, body: outBody, image: outImage });
   }
@@ -212,7 +238,37 @@ app.put("/api/updatepost/:_id", async (req, res, next) => { // /:_id
     );
 
     return res.status(200).json({});
+  } catch (error) {
+    return res.status(500).json({ error: "Failure to update a post" });
+  }
+});
 
+app.put("/api/updatereply/:_id", async (req, res, next) => { // /:_id
+  // incoming: new reply data
+  // outgoing: success or error
+
+  try {
+    const db = client.db("Overcastly");
+    let _id = req.params._id;
+
+    const { title, body, image, replyTo} = req.body;
+
+    if (!title && !body && !image && !replyTo) {
+      return res.status(400).json({ error: "No fields provided :(" });
+    }
+
+    let readPost = await db.collection("Posts").findOne(_id.ObjectId);
+
+    if (!readPost) {
+      return res.status(404).json({ error: "Post not found :(" });
+    }
+
+    const result = await db.collection("Posts").updateOne(
+      { _id: new ObjectId(_id) }, // searching for a specific id syntax
+      { $set: req.body }
+    );
+
+    return res.status(200).json({});
   } catch (error) {
     return res.status(500).json({ error: "Failure to update a post" });
   }
@@ -222,13 +278,14 @@ app.put("/api/updatepost/:_id", async (req, res, next) => { // /:_id
 app.delete("/api/deletepost/:_id", async (req, res, next) => {
   // incoming: post Id
   // outgoing: success or error
-
+  
   try {
     const db = client.db("Overcastly");
     let _id = req.params._id;
 
+    await db.collection("Posts").deleteMany({replyTo: _id});
     let delResult = await db.collection("Posts").deleteOne({ _id: new ObjectId(_id) });
-
+    
     if (delResult.deletedCount === 0) {
       return res.status(404).json({ error: "Could not delete - post does not exist" });
     }
