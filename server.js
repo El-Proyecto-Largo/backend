@@ -48,6 +48,22 @@ const authToken = (req, res, next) => {
   });
 };
 
+// ANCHOR Authenticate
+app.post("/api/authenticate", authToken, async (req, res) => {
+  // just double checks if the token is valid
+  const { userId } = req.body;
+
+  console.log("checking if valid ....");
+  console.log(userId);
+
+  if (userId === req.user.userId.toString()) {
+    console.log("yeah...");
+    return res.status(200).json({});
+  }
+  return res.status(401).json({});
+
+})
+
 // ANCHOR Login
 app.post("/api/login", async (req, res) => {
   const { login, password } = req.body;
@@ -87,8 +103,8 @@ app.post("/api/login", async (req, res) => {
     res.status(200).json({
       token,
       userId: user._id,
-      username: user.username,
-      email: user.email,
+      // username: user.username,
+      // email: user.email,
     });
   } catch (error) {
     return res.status(500).json({ error: "server error while tryna login" });
@@ -130,13 +146,12 @@ app.post("/api/createreply", authToken, async (req, res) => {
   // incoming: title, body, image, authorId, originalPostId
   // outgoing: error
 
-  const { title, body, image, originalPostId } = req.body;
+  const { body, image, originalPostId } = req.body;
 
   const newPost = {
-    title: title,
     body: body,
     image: image,
-    authorId: req.user.userId,
+    authorId: new ObjectId(req.user.userId),
     replyTo: new ObjectId(originalPostId),
     createdAt: new Date(),
   };
@@ -275,8 +290,6 @@ app.get("/api/posts/:_id/getreplies", async (req, res) => {
   // incoming: replyTo (string)
   // outgoing: _id, authorId, body, image
   // returns array of replies to the given post
-
-  console.log("replies hit at " + new Date);
 
   const postId = req.params._id;
   const results = await db.collection('Posts').find({ "replyTo": new ObjectId(postId) }).sort([["_id"]]).toArray();
