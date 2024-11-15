@@ -253,15 +253,6 @@ app.post("/api/getlocalposts", async (req, res) => {
     .sort([["_id", -1]])
     .toArray();
 
-  let outPostId = -1;
-  let outId = -1;
-  let outTitle = "";
-  let outBody = "";
-  let outImage = -1;
-  let outLat = -1;
-  let outLong = -1;
-  let outTags = -1;
-
   let ret = [];
 
   for (let i = 0; i < results.length; i++) {
@@ -280,6 +271,56 @@ app.post("/api/getlocalposts", async (req, res) => {
       continue;
     
     ret.push({ ...results[i] });
+  }
+
+  res.status(200).json(ret);
+});
+
+// ANCHOR Get Pin GeoJSON
+app.get("/api/getpins", async (req, res) => {
+  // incoming: latitude, longitude, distance
+  // outgoing: id, title, body, image, latitude, longitude, authorId, tags
+  // returns array of posts within distance of latitude and longitude
+
+  let error = "";
+
+  const { latitude, longitude, distance } = req.body;
+
+  const results = await db
+    .collection("Posts")
+    .find({})
+    .sort([["_id", -1]])
+    .toArray();
+
+  let ret = [];
+
+  for (let i = 0; i < results.length; i++) {
+
+    // Make sure we have lat/long data for this post
+    if (
+      !(
+        results[i].hasOwnProperty("latitude") &&
+        results[i].hasOwnProperty("longitude")
+      )
+    )
+      continue;
+
+    let newFeature = new Object();
+    newFeature.type = "Feature"
+    newFeature.geometry = new Object();
+    newFeature.properties = new Object();
+
+    // Populate geometry
+    newFeature.geometry.type = "Point";
+    newFeature.geometry.coordinates = [results[i].latitude, results[i].longitude];
+
+    // Populate properties 
+    newFeature.properties.id = results[i]._id;
+    newFeature.properties.title = results[i].title;
+    newFeature.properties.body = results[i].body;
+    newFeature.properties.author = results[i].authorId;
+    
+    ret.push({ ...newFeature });
   }
 
   res.status(200).json(ret);
