@@ -284,8 +284,6 @@ app.get("/api/getpins", async (req, res) => {
 
   let error = "";
 
-  const { latitude, longitude, distance } = req.body;
-
   const results = await db
     .collection("Posts")
     .find({})
