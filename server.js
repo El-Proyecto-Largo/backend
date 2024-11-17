@@ -100,7 +100,7 @@ app.post("/api/login", async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       token,
       userId: user._id,
       // username: user.username,
@@ -111,13 +111,23 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// ANCHOR Create Post
+// ANCHOR (P) Create Post
+// Errors:
+//  400 (missing input fields)
+//  500 (generic error)
+//
 app.post("/api/createpost", authToken, async (req, res) => {
   // incoming: title, body, image, latitude, longitude, authorId, tags
   // outgoing: error
 
   const { title, body, image, latitude, longitude, tags } = req.body;
 
+  // Check that necessary fields are present
+  if (!title || !body || !latitude || !longitude)  {
+    return res.status(400).json({error: "Not all necessary fields are present"});
+  }
+
+  // Fetch info for a new post
   const newPost = {
     title: title,
     body: body,
@@ -131,23 +141,29 @@ app.post("/api/createpost", authToken, async (req, res) => {
 
   try {
     const result = db.collection("Posts").insertOne(newPost);
-  } catch (e) {
-    error = e.toString();
+    return res.status(200).json({message: "Successfully made reply"});
+  } catch (error) {
+    return res.status(500).json({error: "Could not make this reply"});
   }
-
-  // add catch for format mismatch
-
-  let ret = {};
-  res.status(200).json(ret);
 });
 
-// ANCHOR Create Reply
+// ANCHOR (R) Create Reply
+// Errors:
+//  400 (missing input fields)
+//  500 (generic error)
+//
 app.post("/api/createreply", authToken, async (req, res) => {
   // incoming: title, body, image, authorId, originalPostId
   // outgoing: error
 
   const { body, image, originalPostId } = req.body;
 
+  // Check that necessary fields are present
+  if (!body || !originalPostId)  {
+    return res.status(400).json({error: "Not all necessary fields are present"});
+  }
+  
+  // Fetch info for a new post
   const newPost = {
     body: body,
     image: image,
@@ -158,204 +174,254 @@ app.post("/api/createreply", authToken, async (req, res) => {
 
   try {
     const result = db.collection("Posts").insertOne(newPost);
+    return res.status(200).json({message: "Post successfully created"});
   } catch (e) {
-    error = e.toString();
+    return res.status(500).json({error: "Post could not be made"});
   }
-
-  // add catch for format mismatch
-
-  let ret = {};
-  res.status(200).json(ret);
 });
 
-// ANCHOR Search Posts
+// ANCHOR (P/R) Search Posts
+// Errors:
+//  500 (generic error)
+//
 app.post("/api/searchposts", async (req, res) => {
   // incoming: title, body, authorId, tags
   // outgoing: title, body, image, latitude, longitude, authorId, tags
   // Partial matching w/ regex
 
-  let error = "";
-
   const { title, body, authorId, tags } = req.body;
 
-  let results = [];
-  const resultsBody = await db
-    .collection("Posts")
-    .find({
-      $or: [
-        { title: { $regex: title.trim() + ".*", $options: "i" } },
-        { body: { $regex: body.trim() + ".*", $options: "i" } },
-        { authorId: authorId },
-      ],
-    })
-    .toArray();
+  try {
+    let results = [];
+    const resultsBody = await db
+      .collection("Posts")
+      .find({
+        $or: [
+          { title: { $regex: title.trim() + ".*", $options: "i" } },
+          { body: { $regex: body.trim() + ".*", $options: "i" } },
+          { authorId: authorId },
+        ],
+      })
+      .toArray();
 
-  const resultsTags = await db
-    .collection("Posts")
-    .find({ tags: tags })
-    .toArray();
+    const resultsTags = await db
+      .collection("Posts")
+      .find({ tags: tags })
+      .toArray();
 
-  if (tags.length > 0) {
-    results = resultsBody.concat(resultsTags);
-  } else {
-    results = resultsBody;
+    // Match the tags up
+    if (tags.length > 0) {
+      results = resultsBody.concat(resultsTags);
+    } else {
+      results = resultsBody;
+    }
+
+    let ret = [];
+
+    // Push all matches to the output
+    for (let i = 0; i < results.length; i++) {
+      ret.push(results[i]);
+    }
+
+    return res.status(200).json(ret);
+  } catch (error) {
+    return res.status(500).json({error: "Could not search posts"});
   }
-
-  let outPostId = -1;
-  let outId = -1;
-  let outTitle = "";
-  let outBody = "";
-  let outImage = -1;
-  let outLat = -1;
-  let outLong = -1;
-  let outTags = -1;
-
-  let ret = [];
-
-  for (let i = 0; i < results.length; i++) {
-    outPostId = results[i]._id;
-    outId = results[i].authorId;
-    outTitle = results[i].title;
-    outBody = results[i].body;
-    outImage = results[i].image;
-    outLat = results[i].latitude;
-    outLong = results[i].longitude;
-    outTags = results[i].tags;
-
-    ret.push({
-      _id: outPostId,
-      title: outTitle,
-      body: outBody,
-      image: outImage,
-      latitude: outLat,
-      authorId: outId,
-      longitude: outLong,
-      tags: outTags,
-    });
-  }
-
-  res.status(200).json(ret);
 });
 
-// ANCHOR Get Local Posts
+// ANCHOR (P) Get Local Posts
+// Errors:
+//  400 (input fields missing)
+//  500 (generic error)
+//
 app.post("/api/getlocalposts", async (req, res) => {
   // incoming: latitude, longitude, distance
   // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
 
-  let error = "";
-
   const { latitude, longitude, distance } = req.body;
 
-  const results = await db
-    .collection("Posts")
-    .find({})
-    .sort([["_id", -1]])
-    .toArray();
-
-  let ret = [];
-
-  for (let i = 0; i < results.length; i++) {
-    let calcDistance = Math.sqrt(
-      (results[i].latitude - latitude) ** 2 +
-        (results[i].longitude - longitude) ** 2
-    );
-
-    if (
-      calcDistance > distance ||
-      !(
-        results[i].hasOwnProperty("latitude") &&
-        results[i].hasOwnProperty("longitude")
-      )
-    )
-      continue;
-    
-    ret.push({ ...results[i] });
+  // Make sure lat/long and distance are all present
+  if (!latitude || !longitude || !distance) {
+    return res.status(500).json({error: "Not all necessary fields are present"});
   }
 
-  res.status(200).json(ret);
+  try {
+    // Get all posts
+    const results = await db
+      .collection("Posts")
+      .find({})
+      .sort([["_id", -1]])
+      .toArray();
+
+    let ret = [];
+
+    // Iterate through all posts
+    for (let i = 0; i < results.length; i++) {
+
+      // Calculate distance for endpoint
+      let calcDistance = Math.sqrt(
+        (results[i].latitude - latitude) ** 2 +
+          (results[i].longitude - longitude) ** 2
+      );
+
+      // If it's too far or doesn't have the necessary fields, skip
+      if (
+        calcDistance > distance ||
+        !(
+          results[i].hasOwnProperty("latitude") &&
+          results[i].hasOwnProperty("longitude")
+        )
+      )
+        continue;
+      
+      ret.push({ ...results[i] });
+    }
+
+    return res.status(200).json(ret);
+  } catch (error) {
+    return res.status(500).json({error: "Could not get local posts"});
+  }
 });
 
-// ANCHOR Get Pin GeoJSON
+// ANCHOR (P) Get Pin GeoJSON
+// Errors:
+//  500 (generic error)
+//
 app.get("/api/getpins", async (req, res) => {
   // incoming: latitude, longitude, distance
   // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
 
-  let error = "";
+  try {
+    // Fetch posts
+    const results = await db
+      .collection("Posts")
+      .find({})
+      .sort([["_id", -1]])
+      .toArray();
 
-  const results = await db
-    .collection("Posts")
-    .find({})
-    .sort([["_id", -1]])
-    .toArray();
+    // Stack for elements
+    let ret = [];
 
-  let ret = [];
+    // Iterate through all posts
+    for (let i = 0; i < results.length; i++) {
 
-  for (let i = 0; i < results.length; i++) {
-
-    // Make sure we have lat/long data for this post
-    if (
-      !(
-        results[i].hasOwnProperty("latitude") &&
-        results[i].hasOwnProperty("longitude")
+      // Make sure we have lat/long data for this post
+      if (
+        !(
+          results[i].hasOwnProperty("latitude") &&
+          results[i].hasOwnProperty("longitude")
+        )
       )
-    )
-      continue;
+        continue;
 
-    let newFeature = new Object();
-    newFeature.type = "Feature"
-    newFeature.geometry = new Object();
-    newFeature.properties = new Object();
+      // Populate generic structure of GeoJSON
+      let newFeature = new Object();
+      newFeature.type = "Feature"
+      newFeature.geometry = new Object();
+      newFeature.properties = new Object();
 
-    // Populate geometry
-    newFeature.geometry.type = "Point";
-    newFeature.geometry.coordinates = [results[i].latitude, results[i].longitude];
+      // Populate geometry
+      newFeature.geometry.type = "Point";
+      newFeature.geometry.coordinates = [results[i].latitude, results[i].longitude];
 
-    // Populate properties 
-    newFeature.properties.id = results[i]._id;
-    newFeature.properties.title = results[i].title;
-    newFeature.properties.body = results[i].body;
-    newFeature.properties.author = results[i].authorId;
-    
-    ret.push({ ...newFeature });
+      // Populate properties 
+      newFeature.properties.id = results[i]._id;
+      newFeature.properties.title = results[i].title;
+      newFeature.properties.body = results[i].body;
+      newFeature.properties.author = results[i].authorId;
+      
+      // Push all the constent associated 
+      ret.push({ ...newFeature });
+    }
+
+    return res.status(200).json(ret);
+  } catch (error) {
+    return res.status(500).json({error: "Could not get pins"});
   }
-
-  res.status(200).json(ret);
 });
 
-// ANCHOR Get Replies
+// ANCHOR (P/R) Get Post
+// Errors:
+//  404 (post matching ID not found)
+//  500 (generic error)
+//
+app.get("/api/posts/:_id", async (req, res) => {
+  // incoming: post ObjectId (used in url)
+  // outgoing: id, title, body, image, latitude, longitude, authorId, tags
+  try {
+    // Fetch posts matching the id
+    const postId = req.params._id;
+    const results = await db.collection("Posts").find({ _id: new ObjectId(postId) }).toArray();
+
+    // If not found, return 404
+    if (results.length == 0)
+    {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // Post found! Return it.
+    return res.status(200).json(results[0]);
+  } catch (error) {
+    return res.status(500).json({ error: "Couldn't get requested post" });
+  }
+});
+
+// ANCHOR (R) Get Replies
+// Errors:
+//  404 (original post not found)
+//  500 (generic error)
+//
 app.get("/api/posts/:_id/getreplies", async (req, res) => {
   // incoming: replyTo (string)
   // outgoing: _id, authorId, body, image
   // returns array of replies to the given post
 
-  const postId = req.params._id;
-  const results = await db.collection('Posts').find({ "replyTo": new ObjectId(postId) }).sort([["_id"]]).toArray();
+  try {
+    const postId = req.params._id;
 
-  let outAuthorId = -1;
-  let outId = -1;
-  let outBody = '';
-  let outImage = -1;
+    // Ensure the post exists
+    const foundPost = await db.collection("Posts").findOne({ _id: new ObjectId(postId) });
 
-  let ret = [];
+    if (!foundPost) {
+      return res.status(404).json({ error: "No original post found: cannot get replies" });
+    }
 
-  for (let i = 0; i < results.length; i++) {
-    // if (results[i].replyTo != originId)
-    //   continue;
+    // Get all replies to the post, if it exists
+    const results = await db.collection('Posts').find({ "replyTo": new ObjectId(postId) }).sort([["_id"]]).toArray();
 
-    outId = results[i]._id;
-    outAuthorId = results[i].authorId;
-    outBody = results[i].body;
-    outImage = results[i].image;
+    // Make sure that replies have been found
+    if (results.length == 0) {
+      return res.status(200).json({ message: "No replies found" });
+    }
 
-    ret.push({ _id: outId, authorId: outAuthorId, body: outBody, image: outImage });
+    let ret = [];
+    
+    for (let i = 0; i < results.length; i++) {
+      // Fetch all reply components
+      let outId = results[i]._id;
+      let outAuthorId = results[i].authorId;
+      let outBody = results[i].body;
+      let outImage = results[i].image;
+
+      // Push to the output
+      ret.push({ _id: outId, authorId: outAuthorId, body: outBody, image: outImage });
+    }
+    
+    return res.status(200).json(ret);
+  } catch(error) {
+    return res.status(500).json({ error: "Failure to get replies" });
   }
-  
-  res.status(200).json(ret);
 });
 
-// ANCHOR Update Post
+// ANCHOR (P) Update Post
+// Errors:
+//  400 (missing input fields)
+//  403 (ownership error)
+//  404 (post not found)
+//  500 (generic error)
+//
 app.put("/api/updatepost/:_id", authToken, async (req, res) => {
   // /:_id
   // incoming: new post data
@@ -401,7 +467,13 @@ app.put("/api/updatepost/:_id", authToken, async (req, res) => {
   }
 });
 
-// ANCHOR Update Reply
+// ANCHOR (R) Update Reply
+// Errors:
+//  400 (missing input fields)
+//  403 (ownership error)
+//  404 (post not found)
+//  500 (generic error)
+//
 app.put("/api/updatereply/:_id", authToken, async (req, res) => {
   // /:_id
   // incoming: new reply data
@@ -449,10 +521,17 @@ app.put("/api/updatereply/:_id", authToken, async (req, res) => {
   }
 });
 
-// ANCHOR Delete Post
+// ANCHOR (P/R) Delete Post
+// Errors:
+//  403 (ownership error)
+//  404 (post not found)
+//  500 (generic error)
+//
 app.delete("/api/deletepost/:_id", authToken, async (req, res) => {
   // incoming: post Id
   // outgoing: success or error
+
+  // Pablo - why are there two spots that can trigger a 404?
 
   try {
     const db = client.db("Overcastly");
@@ -536,24 +615,6 @@ app.post("/api/registeruser", async (req, res) => {
       .json({ message: "User registered successfully >W<" });
   } catch (e) {
     return res.status(500).json({ error: "A servar ewwow happend ;(" });
-  }
-});
-
-// ANCHOR Get Post
-app.get("/api/posts/:_id", async (req, res) => {
-  // incoming: post ObjectId (used in url)
-  // outgoing: id, title, body, image, latitude, longitude, authorId, tags
-  try {
-    const postId = req.params._id;
-    const results = await db
-      .collection("Posts")
-      .find({ _id: new ObjectId(postId) })
-      .toArray();
-
-    res.status(200).json(results);
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ error: "ummmmmmmmmmm couldnt get post" });
   }
 });
 
