@@ -49,7 +49,7 @@ const authToken = (req, res, next) => {
 };
 
 // ANCHOR Authenticate
-// Errors:
+// Codes:
 //  200 (authenticated)
 //  401 (authentication fails)
 app.post("/api/authenticate", authToken, async (req, res) => {
@@ -64,11 +64,10 @@ app.post("/api/authenticate", authToken, async (req, res) => {
     return res.status(200).json({message: "Authenticated"});
   }
   return res.status(401).json({error: "Auhtentication failed"});
-
 })
 
 // ANCHOR Login
-// Errors:
+// Codes:
 //  200 (user logged in)
 //  400 (missing input fields)
 //  401 (invalid inputs)
@@ -113,7 +112,7 @@ app.post("/api/login", async (req, res) => {
       userId: user._id,
       // username: user.username,
       // email: user.email,
-      message: "User w/ id " + userId + " logged in",
+      message: "User logged in",
     });
   } catch (error) {
     return res.status(500).json({ error: "server error while tryna login" });
@@ -121,7 +120,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // ANCHOR (P) Create Post
-// Errors:
+// Codes:
 //  201 (post created)
 //  400 (missing input fields)
 //  500 (generic error)
@@ -158,7 +157,7 @@ app.post("/api/createpost", authToken, async (req, res) => {
 });
 
 // ANCHOR (R) Create Reply
-// Errors:
+// Codes:
 //  201 (reply created)
 //  400 (missing input fields)
 //  500 (generic error)
@@ -192,9 +191,8 @@ app.post("/api/createreply", authToken, async (req, res) => {
 });
 
 // ANCHOR (P/R) Search Posts
-// Errors:
+// Codes:
 //  200 (posts and or replies found)
-//  204 (no posts or replies found)
 //  500 (generic error)
 //
 app.post("/api/searchposts", async (req, res) => {
@@ -236,24 +234,15 @@ app.post("/api/searchposts", async (req, res) => {
       ret.push(results[i]);
     }
 
-    // Check for posts
-    if(ret.length == 0) {
-      return res.status(204).json({message: "No posts or replies were found"})
-    }
-
-    return res.status(200).json({
-      ret,
-      message: "Posts and or replies were found",
-    });
+    return res.status(200).json(ret);
   } catch (error) {
     return res.status(500).json({error: "Failed to search for posts and or replies"});
   }
 });
 
 // ANCHOR (P) Get Local Posts
-// Errors:
+// Codes:
 //  200 (local posts found)
-//  204 (no posts found)
 //  400 (input fields missing)
 //  500 (generic error)
 //
@@ -301,24 +290,15 @@ app.post("/api/getlocalposts", async (req, res) => {
       ret.push({ ...results[i] });
     }
 
-    // Check for posts
-    if(ret.length == 0) {
-      return res.status(204).json({message: "No local posts were found"})
-    }
-
-    return res.status(200).json({
-      ret,
-      message: "Local posts found",
-    });
+    return res.status(200).json(ret);
   } catch (error) {
     return res.status(500).json({error: "Could not get local posts"});
   }
 });
 
 // ANCHOR (P) Get Pin GeoJSON
-// Errors:
+// Codes:
 //  200 (pins found)
-//  204 (no posts to pin)
 //  500 (generic error)
 //
 app.get("/api/getpins", async (req, res) => {
@@ -369,22 +349,14 @@ app.get("/api/getpins", async (req, res) => {
       ret.push({ ...newFeature });
     }
 
-    // Check for posts
-    if(ret.length == 0) {
-      return res.status(204).json({message: "No posts to pin"})
-    }
-
-    return res.status(200).json({
-      ret,
-      message: "Pins found",
-    });
+    return res.status(200).json(ret);
   } catch (error) {
     return res.status(500).json({error: "Could not get pins"});
   }
 });
 
 // ANCHOR (P/R) Get Post
-// Errors:
+// Codes:
 //  200 (post or reply found)
 //  404 (post or reply matching ID not found)
 //  500 (generic error)
@@ -404,17 +376,14 @@ app.get("/api/posts/:_id", async (req, res) => {
     }
 
     // Post found! Return it.
-    return res.status(200).json({
-      result: results[0],
-      message: "Post or reply w/ id: " + _id + " found",
-    });
+    return res.status(200).json(results[0]);
   } catch (error) {
-    return res.status(500).json({ error: "Couldn't get post or reply w/ id: " + _id });
+    return res.status(500).json({ error: "Couldn't get post or reply"});
   }
 });
 
 // ANCHOR (R) Get Replies
-// Errors:
+// Codes:
 //  200 (replies found)
 //  204 (no replies found)
 //  404 (original post not found)
@@ -456,17 +425,14 @@ app.get("/api/posts/:_id/getreplies", async (req, res) => {
       ret.push({ _id: outId, authorId: outAuthorId, body: outBody, image: outImage });
     }
     
-    return res.status(200).json({
-      ret,
-      message: "Replies found",
-    });
+    return res.status(200).json(ret);
   } catch(error) {
-    return res.status(500).json({ error: "Failed to get replies for post w/ id: " + _id });
+    return res.status(500).json({ error: "Failed to get replies for post"});
   }
 });
 
 // ANCHOR (P) Update Post
-// Errors:
+// Codes:
 //  200 (post updated)
 //  400 (missing input fields)
 //  403 (ownership error)
@@ -512,14 +478,14 @@ app.put("/api/updatepost/:_id", authToken, async (req, res) => {
       }
     );
 
-    return res.status(200).json({message: "Post w/ id " + _id + " updated"});
+    return res.status(200).json({message: "Post updated"});
   } catch (error) {
-    return res.status(500).json({ error: "Failed to update post w/ id: " + _id });
+    return res.status(500).json({ error: "Failed to update post"});
   }
 });
 
 // ANCHOR (R) Update Reply
-// Errors:
+// Codes:
 //  200 (reply updated)
 //  400 (missing input fields)
 //  403 (ownership error)
@@ -567,14 +533,14 @@ app.put("/api/updatereply/:_id", authToken, async (req, res) => {
       .collection("Posts")
       .updateOne({ _id: new ObjectId(_id) }, { $set: updateFields });
 
-    return res.status(200).json({message: "Reply w/ id: " + _id + " updated"});
+    return res.status(200).json({message: "Reply updated"});
   } catch (error) {
-    return res.status(500).json({ error: "Failed to update reply w/ id: " + _id });
+    return res.status(500).json({ error: "Failed to update reply" });
   }
 });
 
 // ANCHOR (P/R) Delete Post
-// Errors:
+// Codes:
 //  204 (post or reply deleted)
 //  403 (ownership error)
 //  404 (post or reply not found) x2
@@ -620,14 +586,14 @@ app.delete("/api/deletepost/:_id", authToken, async (req, res) => {
         .json({ error: "Could not delete - post or reply does not exist" });
     }
 
-    return res.status(204).json({ message: "Post or reply w/ id: " + _id + " successfully deleted" });
+    return res.status(204).json({ message: "Post or reply deleted" });
   } catch (e) {
-    return res.status(500).json({ error: "Failed to delete post w/ id: " + _id });
+    return res.status(500).json({ error: "Failed to delete post or reply" });
   }
 });
 
 // ANCHOR Register User
-// Errors:
+// Codes:
 //  201 (user registered)
 //  400 (missing input fields)
 //  409 (username or email already used)
@@ -677,7 +643,7 @@ app.post("/api/registeruser", async (req, res) => {
 });
 
 // ANCHOR Get User
-// Errors:
+// Codes:
 //  200 (user found)
 //  404 (user not found)
 //  500 (generic error)
@@ -698,17 +664,14 @@ app.get("/api/users/:_id", async (req, res) => {
 
     delete readUser.password;
 
-    return res.status(200).json({
-      readUser,
-      message: "User w/ id: " + _id + " found",
-    });
+    return res.status(200).json(readUser);
   } catch (e) {
     return res.status(500).json({ error: "couldnt fetch user details of user w/ id: " + _id + " wtf!!" });
   }
 });
 
 // ANCHOR Update User
-// Errors:
+// Codes:
 //  200 (user updated)
 //  400 (missing or incorrect fields)
 //  403 (ownership error)
@@ -768,16 +731,16 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
       }
     );
 
-    return res.status(200).json({ message: "updated dat user w/ id: " + _id + " x3" });
+    return res.status(200).json({ message: "updated dat user x3" });
   } catch (error) {
     return res
       .status(500)
-      .json({ error: "couldnt update user w/ id: " + _id + " wtf hapepnd" });
+      .json({ error: "couldnt update user wtf hapepnd" });
   }
 });
 
 // ANCHOR Delete User
-// Errors:
+// Codes:
 //  204 (user deleted)
 //  400 (missing required input)
 //  401 (incorrect required input)
@@ -869,7 +832,7 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
 //       });
 
 //       return res.status(204).json({
-//         message: "BOOM! Account and all related content deleted! for id: " + _id,
+//         message: "BOOM! Account and all related content deleted!",
 //       });
 //     } finally {
 //       await session.endSession();
@@ -878,7 +841,7 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
 //     console.error("Delete error:", e);
 //     return res
 //       .status(500)
-//       .json({ error: "Couldnt delete user w/ id: " + _id + " idk why..." });
+//       .json({ error: "Couldnt delete user idk why..." });
 //   }
 // });
 
