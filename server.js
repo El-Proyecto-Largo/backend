@@ -63,7 +63,7 @@ app.post("/api/authenticate", authToken, async (req, res) => {
     console.log("yeah...");
     return res.status(200).json({message: "Authenticated"});
   }
-  return res.status(401).json({error: "Auhtentication failed"});
+  return res.status(401).json({error: "Authentication failed"});
 })
 
 // ANCHOR Login
@@ -170,7 +170,7 @@ app.post("/api/createreply", authToken, async (req, res) => {
 
   // Check that necessary fields are present
   if (!body || !originalPostId)  {
-    return res.status(400).json({error: "Not all necessary fields are present"});
+    return res.status(400).json({ error: "Not all necessary fields are present" });
   }
   
   // Fetch info for a new post
@@ -184,9 +184,9 @@ app.post("/api/createreply", authToken, async (req, res) => {
 
   try {
     const result = db.collection("Posts").insertOne(newPost);
-    return res.status(201).json({message: "Reply successfully created"});
+    return res.status(201).json({ message: "Reply successfully created" });
   } catch (e) {
-    return res.status(500).json({error: "Reply could not be made"});
+    return res.status(500).json({ error: "Reply could not be made" });
   }
 });
 
@@ -236,7 +236,7 @@ app.post("/api/searchposts", async (req, res) => {
 
     return res.status(200).json(ret);
   } catch (error) {
-    return res.status(500).json({error: "Failed to search for posts and or replies"});
+    return res.status(500).json({ error: "Failed to search for posts and or replies" });
   }
 });
 
@@ -299,12 +299,20 @@ app.post("/api/getlocalposts", async (req, res) => {
 // ANCHOR (P) Get Pin GeoJSON
 // Codes:
 //  200 (pins found)
+//  400 (missing inputs)
 //  500 (generic error)
 //
 app.get("/api/getpins", async (req, res) => {
   // incoming: latitude, longitude, distance
   // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
+
+  const { latitude, longitude, distance } = req.body;
+
+  // Make sure lat/long and distance are all present
+  if (!latitude || !longitude || !distance) {
+    return res.status(400).json({ error: "Not all necessary fields are present" });
+  }
 
   try {
     // Fetch posts
@@ -427,7 +435,7 @@ app.get("/api/posts/:_id/getreplies", async (req, res) => {
     
     return res.status(200).json(ret);
   } catch(error) {
-    return res.status(500).json({ error: "Failed to get replies for post"});
+    return res.status(500).json({ error: "Failed to get replies for post" });
   }
 });
 
@@ -478,9 +486,9 @@ app.put("/api/updatepost/:_id", authToken, async (req, res) => {
       }
     );
 
-    return res.status(200).json({message: "Post updated"});
+    return res.status(200).json({ message: "Post updated" });
   } catch (error) {
-    return res.status(500).json({ error: "Failed to update post"});
+    return res.status(500).json({ error: "Failed to update post" });
   }
 });
 
@@ -533,7 +541,7 @@ app.put("/api/updatereply/:_id", authToken, async (req, res) => {
       .collection("Posts")
       .updateOne({ _id: new ObjectId(_id) }, { $set: updateFields });
 
-    return res.status(200).json({message: "Reply updated"});
+    return res.status(200).json({ message: "Reply updated" });
   } catch (error) {
     return res.status(500).json({ error: "Failed to update reply" });
   }
@@ -666,7 +674,7 @@ app.get("/api/users/:_id", async (req, res) => {
 
     return res.status(200).json(readUser);
   } catch (e) {
-    return res.status(500).json({ error: "couldnt fetch user details of user w/ id: " + _id + " wtf!!" });
+    return res.status(500).json({ error: "couldnt fetch user details wtf!!" });
   }
 });
 
