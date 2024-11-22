@@ -2,10 +2,10 @@
 // Import authToken middleware
 import { app, authToken } from "./server.js";
 
-// 
+// External dependencies
 const jwt = require("jsonwebtoken");
 const { request } = require("supertest");
-const { MongoClient, ObjectId } = require("mongodb");
+const { MongoClient, ObjectId, MongoCryptAzureKMSRequestError, MongoCursorExhaustedError } = require("mongodb");
 
 // Mock JWT key
 const JWT_SECRET = "test-secret-key";
@@ -35,10 +35,12 @@ jest.mock("mongodb", () => ({
     ObjectId: jest.fn((id) => ({ toString: () => id })),
 }));
 
-// post/reply endpoints unit testing
-describe("post/reply API", () => {
-    // Mock user
-    const mockUser = {
+// Mock user and post for all tests
+let mockUser;
+let mockPost;
+
+beforeEach(() => {
+    mockUser = {
         _id: new ObjectId(12345),
         username: "JSmith",
         password: "password",
@@ -48,15 +50,36 @@ describe("post/reply API", () => {
         image: "profile-pic.png"
     };
 
+    mockPost = {
+        _id: new ObjectId(123456),
+        title: "Test Post",
+        body: "testing testing 123",
+        image: "test-image.png",
+        latitude: -70.00,
+        authorId: mockUser._id,
+        longitude: 70.00,
+        tags: ["test"],
+        createdAt: new Date(),
+    };
+
+    app.use((req, res, next) => {  
+        req.params._id = mockPost._id;
+        req.user = mockUser;
+        next();
+    });
+});
+
+afterEach(() => {
+    jest.clearAllMocks();
+});
+
+// post/reply endpoints unit testing
+describe("post/reply API", () => {
     // create post test
     //  201 (Successfully made post)
     //  400 (Not all necessary fields are present)
     //  500 (Could not make this post)
     describe("POST /api/createpost", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
         it("returns 201 if post was created", async () => {
             mockDb.collection.insertOne.mockResolvedValue({ 
                 acknowledged: true,
@@ -71,7 +94,7 @@ describe("post/reply API", () => {
                     body: "testing testing 123",
                     image: "test-image.png",
                     latitude: -70.00,
-                    authorId: mockUser._id,
+                    authorId: new ObjectId(12345),
                     longitude: 70.00,
                     tags: ["test"],
                     createdAt: new Date(),
@@ -104,7 +127,7 @@ describe("post/reply API", () => {
                     body: "testing testing 123",
                     image: "test-image.png",
                     latitude: -70.00,
-                    authorId: mockUser._id,
+                    authorId: new ObjectId(12345),
                     longitude: 70.00,
                     tags: ["test"],
                     createdAt: new Date(),
@@ -116,28 +139,16 @@ describe("post/reply API", () => {
     });
 
     // get post/reply test
-    //  200 ()
+    //  200 (post/reply)
     //  404 (Post or reply not found)
     //  500 (Couldn't get post or reply)
     describe("GET /api/posts/:_id", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
         it("returns 200 if post or reply was found", async () => {
-            const mockPost = {
-                _id: new ObjectId(123456),
-                title: "Test Post",
-                body: "testing testing 123",
-                image: "test-image.png",
-                authorId: mockUser._id,
-            };
-
             mockDb.collection.find.mockResolvedValue(mockPost);
 
             const response = await request(app)
-                .get("/api/post/:_id")
-                .send({ _id: new ObjectId(123456) });
+                .get(`/api/post/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(200);
             expect(response.body).toEqual(mockPost);
@@ -147,8 +158,8 @@ describe("post/reply API", () => {
             mockDb.collection.find.mockResolvedValue(null);
 
             const response = await request(app)
-                .get("/api/post/:_id")
-                .send({ _id: new ObjectId(123456) });
+                .get(`/api/post/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(404);
             expect(response.body).toEqual({ error: "Post or reply not found" });
@@ -160,8 +171,8 @@ describe("post/reply API", () => {
             });
 
             const response = await request(app)
-                .post("/api/post/:_id")
-                .send({ _id: new ObjectId(123456) });
+                .get(`/api/post/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(500);
             expect(response.body).toEqual({ error: "Couldn't get post or reply" });
@@ -169,44 +180,49 @@ describe("post/reply API", () => {
     });
 
     // update post test
-    //  200 (Post w/ id _id updated)
+    //  200 (Post updated)
     //  400 (No fields provided :()
     //  403 (that aint yo post bruh u cant edit that)
     //  404 (Post not found :()
     //  500 (Failed to update post)
-    describe("PUT /api/updatepost", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
+    describe("PUT /api/updatepost/:_id", () => {
         it("returns 200 if post was updated", async () => {
-            const mockPost = {
-                _id: new ObjectId(123456),
-                title: "Original Title",
-                body: "original body",
-                image: "original-image.png",
-                authorId: mockUser._id,
-            };
-
             mockDb.collection.findOne.mockResolvedValue(mockPost)
             mockDb.collection.updateOne.mockResolvedValue({ modifiedCount: 1 });
             
             const response = await request(app)
-                .put("/api/updatepost")
+                .put(`/api/updatepost/${mockPost._id}`)
                 .send({
                     title: "Updated Title",
                     body: "updated body",
                     image: "new-image.png", 
-                    updatedAt: new Date(),
+                    longitude: 70.00,
+                    latitude: -70.00,
+                    tags: ["updated"],
                 });
 
             expect(response.status).toBe(200);
             expect(response.body).toEqual({ message: "Post updated" });
+
+            expect(mockDb.collection.updateOne).toHaveBeenCalledWith(
+                { _id: new ObjectId(mockPost._id) },
+                {
+                  $set: {
+                    title: "Updated Title",
+                    body: "updated body",
+                    image: "new-image.png", 
+                    longitude: 70.00,
+                    latitude: -70.00,
+                    tags: ["updated"],
+                    updatedAt: new Date(),
+                  },
+                }
+            );
         });
 
         it("returns 400 if no fields were provided", async () => {
             const response = await request(app)
-                .put("/api/updatepost")
+                .put(`/api/updatepost/${mockPost._id}`)
                 .send({});
 
             expect(response.status).toBe(400);
@@ -214,23 +230,23 @@ describe("post/reply API", () => {
         });
 
         it("returns 403 if user isn't author", async () => {
-            const mockPost = {
-                _id: new ObjectId(123456),
-                title: "Original Title",
-                body: "original body",
-                image: "original-image.png",
-                authorId: new ObjectId(54321),
-            };
+            app.use((req, res, next) => {  
+                req.params._id = mockPost._id;
+                req.user.userId = new ObjectId(54321);
+                next();
+            });
 
             mockDb.collection.findOne.mockResolvedValue(mockPost);
 
             const response = await request(app)
-                .put("/api/updatepost")
+                .put(`/api/updatepost/${mockPost._id}`)
                 .send({
                     title: "Updated Title",
                     body: "updated body",
                     image: "new-image.png", 
-                    updatedAt: new Date(),
+                    longitude: 70.00,
+                    latitude: -70.00,
+                    tags: ["updated"],
                 });
 
             expect(response.status).toBe(403);
@@ -241,12 +257,14 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(null);
 
             const response = await request(app)
-                .put("/api/updatepost")
+                .put(`/api/updatepost/${mockPost._id}`)
                 .send({
                     title: "Updated Title",
                     body: "updated body",
                     image: "new-image.png", 
-                    updatedAt: new Date(),
+                    longitude: 70.00,
+                    latitude: -70.00,
+                    tags: ["updated"],
                 });
 
             expect(response.status).toBe(404);
@@ -260,12 +278,14 @@ describe("post/reply API", () => {
             });
 
             const response = await request(app)
-                .post("/api/updatepost")
+                .put(`/api/updatepost/${mockPost._id}`)
                 .send({
                     title: "Updated Title",
                     body: "updated body",
                     image: "new-image.png", 
-                    updatedAt: new Date(),
+                    longitude: 70.00,
+                    latitude: -70.00,
+                    tags: ["updated"],
                 });
 
             expect(response.status).toBe(500);
@@ -278,28 +298,14 @@ describe("post/reply API", () => {
     //  403 (that aint yo post or reply bruh u cant delete that)
     //  404 (cant delete a post or reply that doesnt exist) x2
     //  500 (Failed to delete post )
-    describe("DELETE /api/deletepost", () => {
-        beforeAll(() => {
-            const mockPost = {
-                _id: new ObjectId(123456),
-                title: "Title",
-                body: "body",
-                image: "image.png",
-                authorId: mockUser._id,
-            };
-        });
-
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
+    describe("DELETE /api/deletepost/:_id", () => {
         it("returns 204 if post was deleted", async () => {
             mockDb.collection.findOne.mockResolvedValue(mockPost);
             mockDb.collection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
             const response = await request(app)
-                .delete("/api/deletepost")
-                .send({ _id: new ObjectId(123456) });
+                .delete(`/api/deletepost/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(204);
             expect(response.body).toEqual({ message: "Post or reply deleted" });
@@ -317,8 +323,8 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(diffMockPost);
 
             const response = await request(app)
-                .delete("/api/deletepost")
-                .send({ _id: new ObjectId(123456) });
+                .delete(`/api/deletepost/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(403);
             expect(response.body).toEqual({ error: "that aint yo post or reply bruh u cant delete that" });
@@ -328,8 +334,8 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(null);
             
             const response = await request(app)
-                .delete("/api/deletepost")
-                .send({ _id: new ObjectId(123456) });
+                .delete(`/api/deletepost/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(404);
             expect(response.body).toEqual({ error: "cant delete a post or reply that doesnt exist" });
@@ -340,8 +346,8 @@ describe("post/reply API", () => {
             mockDb.collection.deleteOne.mockResolvedValue({ deletedCount: 0 });
 
             const response = await request(app)
-                .delete("/api/deletepost")
-                .send({ _id: new ObjectId(123456) });
+                .delete(`/api/deletepost/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(404);
             expect(response.body).toEqual({ error: "Could not delete - post or reply does not exist" });
@@ -354,8 +360,8 @@ describe("post/reply API", () => {
             }); 
 
             const response = await request(app)
-                .post("/api/deletepost")
-                .send({ _id: new ObjectId(123456) });
+                .delete(`/api/deletepost/${mockPost._id}`)
+                .send({});
 
             expect(response.status).toBe(500);
             expect(response.body).toEqual({ error: "Failed to delete post or reply" });
@@ -367,22 +373,6 @@ describe("post/reply API", () => {
     //  400 (Not all necessary fields are present)
     //  500 (Reply could not be made)
     describe("POST /api/createreply", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
-        const mockPost = {
-            _id: new ObjectId(123456),
-            title: "Test Post",
-            body: "testing testing 123",
-            image: "test-image.png",
-            latitude: -70.00,
-            authorId: mockUser._id,
-            longitude: 70.00,
-            tags: ["test"],
-            createdAt: new Date(),
-        };
-
         it("returns 201 if reply was created", async () => {
             mockDb.collection.insertOne.mockResolvedValue({ 
                 acknowledged: true,
@@ -392,7 +382,7 @@ describe("post/reply API", () => {
             const response = await request(app)
                 .post("/api/createreply")
                 .send({
-                    authorId: new ObjectId(12345678),
+                    authorId: mockUser._id,
                     body: "test reply",
                     image: "reply-image.png",
                     replyTo: mockPost._id,
@@ -431,33 +421,17 @@ describe("post/reply API", () => {
     });
 
     // update reply test
-    //  200 (Reply  updated)
+    //  200 (Reply updated)
     //  400 (No fields provided :()
     //  403 (you cant update a reply that isnt yours silly)
     //  404 (Reply not found :()
     //  500 (Failed to update reply )
-    describe("PUT /api/updatereply", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
-        const mockPost = {
-            _id: new ObjectId(123456),
-            title: "Test Post",
-            body: "testing testing 123",
-            image: "test-image.png",
-            latitude: -70.00,
-            authorId: mockUser._id,
-            longitude: 70.00,
-            tags: ["test"],
-            createdAt: new Date(),
-        };
-
+    describe("PUT /api/updatereply/:_id", () => {
         it("returns 200 if the reply was updated", async () => {
             const mockReply = {
                 _id: new ObjectId(12345678),
-                authorId: new ObjectId(12345),
-                body: "test reply",
+                authorId: mockUser._id,
+                body: "Test Reply",
                 image: "reply-image.png",
                 replyTo: mockPost._id,
             };
@@ -466,8 +440,9 @@ describe("post/reply API", () => {
             mockDb.collection.updateOne.mockResolvedValue({ modifiedCount: 1 });
 
             const response = await request(app)
-                .put("/api/updatereply")
+                .put(`/api/updatereply/${mockReply._id}`)
                 .send({
+                    title: "Updated Reply",
                     body: "updated body",
                     image: "new-image.png", 
                     updatedAt: new Date(),
@@ -477,9 +452,10 @@ describe("post/reply API", () => {
             expect(response.body).toEqual({ message: "Reply updated" });
 
             expect(mockDb.collection.updateOne).toHaveBeenCalledWith(
-                { _id: new ObjectId(_id) },
+                { _id: new ObjectId(mockReply._id) },
                 {
                   $set: {
+                    title: "Updated Reply",
                     body: "updated body",
                     image: "new-image.png", 
                     updatedAt: new Date(),
@@ -490,7 +466,7 @@ describe("post/reply API", () => {
 
         it("returns 400 if no fields were filled in", async () => {
             const response = await request(app)
-                .put("/api/updatereply")
+                .put(`/api/updatereply/${mockReply._id}`)
                 .send({});
 
             expect(response.status).toBe(400);
@@ -509,8 +485,9 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(mockReply)
 
             const response = await request(app)
-                .put("/api/updatereply")
+                .put(`/api/updatereply/${mockReply._id}`)
                 .send({
+                    title: "Updated Reply",
                     body: "updated body",
                     image: "new-image.png", 
                     updatedAt: new Date(),
@@ -524,8 +501,9 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(null)
 
             const response = await request(app)
-                .put("/api/updatereply")
+                .put(`/api/updatereply/${mockReply._id}`)
                 .send({
+                    title: "Updated Reply",
                     body: "updated body",
                     image: "new-image.png", 
                     updatedAt: new Date(),
@@ -542,8 +520,9 @@ describe("post/reply API", () => {
             });
 
             const response = await request(app)
-                .post("/api/updatereply")
+                .put(`/api/updatereply/${mockReply._id}`)
                 .send({
+                    title: "Updated Reply",
                     body: "updated body",
                     image: "new-image.png", 
                     updatedAt: new Date(),
@@ -558,23 +537,7 @@ describe("post/reply API", () => {
     //  200 (Posts and or replies were found OR No posts or replies were found)
     //  500 (Failed to search for posts and or replies)
     describe("POST /api/searchposts", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
         it("returns 200 if posts or replies were found", async () => {
-            const mockPost1 = {
-                _id: new ObjectId(123456),
-                title: "Test Post 1",
-                body: "testing testing 123",
-                image: "test-image1.png",
-                latitude: -70.00,
-                authorId: mockUser._id,
-                longitude: 70.00,
-                tags: ["test"],
-                createdAt: new Date(),
-            };
-
             const mockPost2 = {
                 _id: new ObjectId(1234567),
                 title: "Test Post 2",
@@ -587,7 +550,7 @@ describe("post/reply API", () => {
                 createdAt: new Date(),
             };
 
-            const postArr = [mockPost1, mockPost2];
+            const postArr = [mockPost, mockPost2];
             const tagsArr = ["test1", "test2"];
             const returnArr = postArr.concat(tagsArr);
 
@@ -646,22 +609,6 @@ describe("post/reply API", () => {
     //  400 (Not all necessary fields are present)
     //  500 (Could not get local posts)
     describe("POST /api/getlocalposts", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
-        const mockPost1 = {
-            _id: new ObjectId(123456),
-            title: "Test Post 1",
-            body: "testing testing 123",
-            image: "test-image1.png",
-            latitude: -70.00,
-            authorId: mockUser._id,
-            longitude: 70.00,
-            tags: ["test"],
-            createdAt: new Date(),
-        };
-
         const mockPost2 = {
             _id: new ObjectId(1234567),
             title: "Test Post 2",
@@ -674,13 +621,13 @@ describe("post/reply API", () => {
             createdAt: new Date(),
         };
 
-        const postArr = [mockPost1, mockPost2];
+        const postArr = [mockPost, mockPost2];
 
         it("returns 200 if local posts were found", async () => {
             mockDb.collection.find.mockResolvedValue(postArr);
 
             const response = await request(app)
-                .get("/api/getlocalposts")
+                .post("/api/getlocalposts")
                 .send({
                     latitude: -73.50,
                     longitude: 73.50,
@@ -695,7 +642,7 @@ describe("post/reply API", () => {
             mockDb.collection.find.mockResolvedValue(null);
 
             const response = await request(app)
-                .get("/api/getlocalposts")
+                .post("/api/getlocalposts")
                 .send({
                     latitude: -73.50,
                     longitude: 73.50,
@@ -708,7 +655,7 @@ describe("post/reply API", () => {
 
         it("returns 400 if not all fields were filled in", async () => {
             const response = await request(app)
-                .get("/api/getlocalposts")
+                .post("/api/getlocalposts")
                 .send({ distance: 5.00 });
 
             expect(response.status).toBe(400);
@@ -739,22 +686,6 @@ describe("post/reply API", () => {
     //  404 (No original post found: cannot get replies)
     //  500 (Failed to get replies for post )
     describe("POST /api/posts/:_id/getreplies", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
-        const mockPost = {
-            _id: new ObjectId(123456),
-            title: "Test Post",
-            body: "testing testing 123",
-            image: "test-image.png",
-            latitude: -70.00,
-            authorId: mockUser._id,
-            longitude: 70.00,
-            tags: ["test"],
-            createdAt: new Date(),
-        };
-
         it("returns 200 if replies were found", async () => {
             const mockReply1 = {
                 _id: new ObjectId(1234567),
@@ -778,8 +709,8 @@ describe("post/reply API", () => {
             mockDb.collection.find.mockResolvedValue(replyArr);
 
             const response = await request(app)
-                .post("/api/posts/:_id/getreplies")
-                .send({ _id: mockPost._id });
+                .post(`/api/posts/${mockPost._id}/getreplies`)
+                .send({});
 
             expect(response.status).toBe(200);
             expect(response.body).toEqual(replyArr);
@@ -790,8 +721,8 @@ describe("post/reply API", () => {
             mockDb.collection.find.mockResolvedValue(null);
 
             const response = await request(app)
-                .post("/api/posts/:_id/getreplies")
-                .send({ _id: mockPost._id });
+                .post(`/api/posts/${mockPost._id}/getreplies`)
+                .send({});
 
             expect(response.status).toBe(200);
             expect(response.body).toEqual({ message: "No replies found" });
@@ -801,8 +732,8 @@ describe("post/reply API", () => {
             mockDb.collection.findOne.mockResolvedValue(null);
 
             const response = await request(app)
-                .post("/api/posts/:_id/getreplies")
-                .send({ _id: mockPost._id });
+                .post(`/api/posts/${mockPost._id}/getreplies`)
+                .send({});
 
             expect(response.status).toBe(404);
             expect(response.body).toEqual({ error: "No original post found: cannot get replies" });
@@ -815,8 +746,8 @@ describe("post/reply API", () => {
            }); 
 
             const response = await request(app)
-                .post("/api/")
-                .send({ _id: mockPost._id });
+                .post(`/api/posts/${mockPost._id}/getreplies`)
+                .send({});
 
             expect(response.status).toBe(500);
             expect(response.body).toEqual({ error: "Failed to get replies for post" });
@@ -828,10 +759,6 @@ describe("post/reply API", () => {
     //  400 (Not all necessary fields are present)
     //  500 (Could not get pins)
     describe("GET /api/getpins", () => {
-        afterEach(() => {
-            jest.clearAllMocks();
-        });
-
         const mockPost1 = {
             _id: new ObjectId(123456),
             title: "Test Post 1",
@@ -910,7 +837,7 @@ describe("post/reply API", () => {
             mockDb.collection.find.mockResolvedValue(null);
 
             const response = await request(app)
-                .post("/api/getpins")
+                .get("/api/getpins")
                 .send({
                     latitude: -73.50,
                     longitude: 73.50,
@@ -936,7 +863,7 @@ describe("post/reply API", () => {
            }); 
 
             const response = await request(app)
-                .post("/api/getpins")
+                .get("/api/getpins")
                 .send({
                     latitude: -73.50,
                     longitude: 73.50,
@@ -1357,64 +1284,96 @@ describe("user API", () => {
     //  401 (password is wrong)
     //  403 (can only delete your own account)
     //  404 (user not found :()
-    //  500 (Couldnt delete user  idk why...)
+    //  500 (Couldnt delete user idk why...)
     // describe("DELETE /api/deleteuser/:_id", () => {
+    //     beforeEach(() => {
+    //         const mockUser = {
+    //             _id: new ObjectId(12345),
+    //             username: "JSmith",
+    //             password: "password",
+    //             firstName: "John",
+    //             lastName: "Smith",
+    //             email: "johnsmith123@gmail.com",
+    //             image: "profile-pic.png"
+    //         };
+    
+    //         const mockPost = {
+    //             _id: new ObjectId(123456),
+    //             title: "Test Post",
+    //             body: "testing testing 123",
+    //             image: "test-image.png",
+    //             latitude: -70.00,
+    //             authorId: mockUser._id,
+    //             longitude: 70.00,
+    //             tags: ["test"],
+    //             createdAt: new Date(),
+    //         };
+    
+    //         const mockReply = {
+    //             _id: new ObjectId(1234567),
+    //             authorId: mockUser._id,
+    //             body: "test reply",
+    //             image: "reply-image.png",
+    //             replyTo: mockPost._id,
+    //         };
+    //     });
+    
     //     afterEach(() => {
     //         jest.clearAllMocks();
     //     });
-    //
+    
     //     it("returns 204 if account and related content was deleted", async () => {
     //         const response = await request(app)
     //             .delete("/api/deleteuser/:_id")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(204);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ message: "BOOM! Account and all related content deleted!" });
     //     });
-    //
+    
     //     it("returns 400 if password is not provided", async () => {
     //         const response = await request(app)
     //             .delete("/api/deleteuser/:_id")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(400);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ error: "confirm password for account deletion" });
     //     });
-    //
+    
     //     it("returns 401 if password is incorrect", async () => {
     //         const response = await request(app)
     //             .delete("/api/deleteuser/:_id")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(401);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ error: "password is wrong" });
     //     });
-    //
+    
     //     it("returns 403 if current user is not the user being deleted", async () => {
     //         const response = await request(app)
     //             .delete("/api/deleteuser/:_id")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(403);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ error: "can only delete your own account" });
     //     });
-    //
+    
     //     it("returns 404 if user wasn't found", async () => {
     //         const response = await request(app)
     //             .delete("/api/deleteuser/:_id")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(404);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ error: "user not found :(" });
     //     });
-    //
+    
     //     it("returns 500 if fails", async () => {
     //         const response = await request(app)
     //             .post("/api/")
     //             .send({});
-    //
+    
     //         expect(response.status).toBe(500);
-    //         expect(response.body).toEqual({});
+    //         expect(response.body).toEqual({ error: "Couldnt delete user idk why..." });
     //     });
     // });
 });
