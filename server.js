@@ -52,18 +52,22 @@ const authToken = (req, res, next) => {
 // Codes:
 //  200 (authenticated)
 //  401 (authentication fails)
-app.post("/api/authenticate", authToken, async (req, res) => {
-  // just double checks if the token is valid
-  const { userId } = req.body;
+app.get("/api/authenticate", async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
-  console.log("checking if valid ....");
-  console.log(userId);
-
-  if (userId === req.user.userId.toString()) {
-    console.log("yeah...");
-    return res.status(200).json({message: "Authenticated"});
+  if (!token) {
+    return res.status(401).json({ error: "Authentication failed" });
   }
-  return res.status(401).json({error: "Authentication failed"});
+
+  jwt.verify(token, JWT_SECRET, (err) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid token" });
+    }
+    else {
+      return res.status(200).json({ message: "Successfully authenticated"} )
+    }
+  });
 })
 
 // ANCHOR Login
