@@ -153,8 +153,8 @@ app.post("/api/createpost", authToken, async (req, res) => {
   };
 
   try {
-    const result = db.collection("Posts").insertOne(newPost);
-    return res.status(201).json({ message: "Successfully made post" });
+    const result = await db.collection("Posts").insertOne(newPost);
+    return res.status(201).json({ postId: result["insertedId"] });
   } catch (error) {
     return res.status(500).json( {error: "Could not make this post" });
   }
@@ -418,11 +418,6 @@ app.get("/api/posts/:_id/getreplies", async (req, res) => {
 
     // Get all replies to the post, if it exists
     const results = await db.collection('Posts').find({ "replyTo": new ObjectId(postId) }).sort([["_id"]]).toArray();
-
-    // Make sure that replies have been found
-    if (results.length == 0) {
-      return res.status(204).json({ message: "No replies found" });
-    }
 
     let ret = [];
     
