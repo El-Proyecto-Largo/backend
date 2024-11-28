@@ -196,7 +196,7 @@ app.post("/api/createreply", authToken, async (req, res) => {
 
 // ANCHOR (P/R) Search Posts
 // Codes:
-//  200 (posts and or replies found)
+//  200 (no error)
 //  500 (generic error)
 //
 app.post("/api/searchposts", async (req, res) => {
@@ -240,7 +240,36 @@ app.post("/api/searchposts", async (req, res) => {
 
     return res.status(200).json(ret);
   } catch (error) {
-    return res.status(500).json({ error: "Failed to search for posts and or replies" });
+    return res.status(500).json({ error: "Failed to search for posts and/or replies" });
+  }
+});
+
+// ANCHOR (P/R) Generalized Post Search
+// Codes:
+//  200 (no error)
+//  500 (generic error)
+//
+app.post("/api/generalsearchposts", async (req, res) => {
+  // incoming: search
+  // outgoing: title, body, image, latitude, longitude, authorId, tags
+  // Partial matching w/ regex
+
+  const { search } = req.body;
+
+  try {
+    const resultsBody = await db
+      .collection("Posts")
+      .find({
+        $or: [
+          { title: { $regex: search.trim() + ".*", $options: "i" } },
+          { body: { $regex: search.trim() + ".*", $options: "i" } }
+        ],
+      })
+      .toArray();
+
+    return res.status(200).json(resultsBody);
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to search for posts and/or replies" });
   }
 });
 
