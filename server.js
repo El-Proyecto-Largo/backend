@@ -22,7 +22,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json( { limit: '8mb' } ));
 
 // Consts
 const JWT_SECRET = process.env.JWT_SECRET || "jwt-secret-fallback-pls-make-sure-env-has-it";
@@ -340,13 +340,6 @@ app.get("/api/getpins", async (req, res) => {
   // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
 
-  const { latitude, longitude, distance } = req.body;
-
-  // Make sure lat/long and distance are all present
-  if (!latitude || !longitude || !distance) {
-    return res.status(400).json({ error: "Not all necessary fields are present" });
-  }
-
   try {
     // Fetch posts
     const results = await db
@@ -356,7 +349,7 @@ app.get("/api/getpins", async (req, res) => {
       .toArray();
 
     // Stack for elements
-    let ret = [];
+    let features = [];
 
     // Iterate through all posts
     for (let i = 0; i < results.length; i++) {
@@ -378,7 +371,7 @@ app.get("/api/getpins", async (req, res) => {
 
       // Populate geometry
       newFeature.geometry.type = "Point";
-      newFeature.geometry.coordinates = [results[i].latitude, results[i].longitude];
+      newFeature.geometry.coordinates = [results[i].longitude, results[i].latitude];
 
       // Populate properties 
       newFeature.properties.id = results[i]._id;
@@ -386,11 +379,16 @@ app.get("/api/getpins", async (req, res) => {
       newFeature.properties.body = results[i].body;
       newFeature.properties.author = results[i].authorId;
       
-      // Push all the constent associated 
-      ret.push({ ...newFeature });
+      // Push all the content associated 
+      features.push({ ...newFeature });
     }
 
-    return res.status(200).json(ret);
+    const geoJSON = {
+      "type": "FeatureCollection",
+      "features": features
+    }
+
+    return res.status(200).json(geoJSON);
   } catch (error) {
     return res.status(500).json({error: "Could not get pins"});
   }
