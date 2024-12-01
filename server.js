@@ -103,6 +103,10 @@ app.post("/api/login", async (req, res) => {
       return res.status(401).json({ error: "invalid credz" });
     }
 
+    if (user.hasOwnProperty('active') && user.active == false) {
+      return res.status(401).json({ error: "user has not yet been activated" });
+    }
+
     const token = jwt.sign(
       {
         userId: user._id,
