@@ -1,0 +1,540 @@
+openapi: 3.0.0
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/JUSTIZIAN8/Overcastly/1.0.0
+info:
+  description: API docs for Overcastly posts/replies and users
+  version: "1.0.0"
+  title: Overcastly API
+  contact:
+    email: you@your-company.com
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+tags:
+  - name: Posts
+    description: Social media posts for disaster response
+  - name: Users
+    description: User profiling interfacing
+paths:
+  /api/authenticate:
+    get:
+      tags:
+        - Users
+      summary: authenticates user, given a JWT
+      operationId: authenticate
+      description: |
+        Given a token, verifies a user's authentication
+      parameters:
+        - in: header
+          name: authentication
+          description: pass a required JWT to be authenticated
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: user successfully authenticated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+        '401':
+          description: token not provided, authentication failed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+        '403':
+          description: invalid token, user unsuccessfully authenticated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/login:
+    post:
+      tags:
+        - Users
+      summary: logs in the provided user
+      operationId: login
+      description: |
+        Logs a given user into the server
+      parameters:
+        - in: query
+          name: title
+          description: username or email (either works) used for login
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: body
+          description: encrypted password used for login
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: user successfully logged in
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    token:
+                      type: string
+                    userId:
+                      type: string
+                    message:
+                      type: string
+                  
+        '401':
+          description: token not provided, authentication failed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+        '403':
+          description: invalid token, user unsuccessfully authenticated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/createpost:
+    post:
+      tags:
+        - Posts
+      summary: creates a post given input fields
+      operationId: createPost
+      description: |
+        Generates a new post with the provided inputs
+      parameters:
+        - in: query
+          name: title
+          description: title for the post
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: body
+          description: body for the post
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: image
+          description: image for the post (optional)
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: latitude
+          description: latitude associated with the post
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          description: latitude associated with the post
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: tags
+          description: tags for the post
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - in: cookie
+          name: token
+          description: user authentication token
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: post successfully made
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    postId:
+                      type: string
+        '400':
+          description: not all required fields present
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+        '500':
+          description: generic error/could not make post
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/createreply:
+    post:
+      tags:
+        - Posts
+      summary: creates a reply given input fields
+      operationId: createReply
+      description: |
+        Creates a new reply with the provided inputs
+      parameters:
+        - in: query
+          name: body
+          description: body for the post
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: image
+          description: image for the post
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: originalPostId
+          description: id for the post this one is replying to
+          required: true
+          schema:
+            type: string
+        - in: cookie
+          name: token
+          description: user authentication token
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: reply successfully made
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+        '400':
+          description: not all required fields present
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+        '500':
+          description: generic error/could not make reply
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/searchposts:
+    post:
+      tags:
+        - Posts
+      summary: searches for matching posts
+      operationId: searchPosts
+      description: |
+        Searches for any posts with a partial match on the input fields, or matching tags
+      parameters:
+        - in: query
+          name: title
+          description: title to search for
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: body
+          description: body to search for
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: authorId
+          description: author's ID to search for
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: tags
+          description: tags to search for
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: successful search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PostReply'
+        '500':
+          description: generic error/could not search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/generalizedsearchposts:
+    post:
+      tags:
+        - Posts
+      summary: searches for posts matching body or title
+      operationId: generalizedSearchPosts
+      description: |
+        Searches for any posts with a partial match on the body or title inputs
+      parameters:
+        - in: query
+          name: title
+          description: title to search for
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: body
+          description: body to search for
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/PostReply'
+        '500':
+          description: generic error/could not search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/getlocalposts:
+    post:
+      tags:
+        - Posts
+      summary: searches for posts near a given point
+      operationId: getLocalPosts
+      description: |
+        Searches for any posts within 'distance' degrees of (latitude, longitude)
+      parameters:
+        - in: query
+          name: latitude
+          description: latitude of the point to search from
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          description: longitude of the point to search from
+          required: true
+          schema:
+            type: number
+        - in: query
+          name: distance
+          description: distance from the coordinate to search
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: successful local search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Post'
+        '400':
+          description: input fields missing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+        '500':
+          description: generic error/could not search
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+  /api/getpins:
+    get:
+      tags:
+        - Posts
+      summary: provides a JeoJSON of all mapped posts
+      operationId: getPins
+      description: |
+        Provides a GeoJSON with pins for all mapped posts, including necessary fields
+      responses:
+        '200':
+          description: successful pin fetch
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    coordinates:
+                      type: object
+                      properties:
+                        latitude:
+                          type: number
+                        longitude:
+                          type: number
+                    id:
+                      type: string
+                    title:
+                      type: string
+                    body:
+                      type: string
+                    author:
+                      type: string
+        '500':
+          description: generic error/could not get pins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    error:
+                      type: string
+
+components:
+  schemas:
+    PostReply:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        image:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        authorId:
+          type: string
+        originalPostId:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+    Post:
+      type: object
+      required:
+        - title
+        - authorId
+        - latitude
+        - longitude
+        - createdAt
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        image:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        authorId:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string

@@ -9,6 +9,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const postmark = require("postmark");
 
 // Database
 const { MongoClient, ObjectId } = require("mongodb");
@@ -52,6 +53,7 @@ const authToken = (req, res, next) => {
 // Codes:
 //  200 (authenticated)
 //  401 (authentication fails)
+//  403 (invalid token)
 app.get("/api/authenticate", async (req, res) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -626,7 +628,7 @@ app.delete("/api/deletepost/:_id", authToken, async (req, res) => {
   }
 });
 
-// ANCHOR Register User
+// ANCHOR Register User (Deprecated)
 // Codes:
 //  201 (user registered)
 //  400 (missing input fields)
@@ -671,6 +673,155 @@ app.post("/api/registeruser", async (req, res) => {
     return res
       .status(201)
       .json({ message: "User registered successfully >W<" });
+  } catch (e) {
+    return res.status(500).json({ error: "A servar ewwow happend ;(" });
+  }
+});
+
+// ANCHOR Begin User Registration
+// Codes:
+//  201 (user registered)
+//  400 (missing input fields)
+//  409 (username or email already used)
+//  500 (generic error)
+app.post("/api/initialregisteruser", async (req, res) => {
+  // incoming: username, password, firstName, lastName, email
+  // outgoing: error
+
+  const { username, password, firstName, lastName, email } = req.body;
+
+  if (!username || !password || !firstName || !lastName || !email) {
+    return res.status(400).json({ error: "Missing some register fields" });
+  }
+
+  try {
+    const existingUser = await db.collection("Users").findOne({
+      $or: [{ username }, { email }],
+    });
+
+    if (existingUser) {
+      const error =
+        existingUser.username === username
+          ? "username already exists!"
+          : "email has already been registered to an account";
+
+      return res.status(409).json({ error });
+    }
+
+    const hashedPasswd = await bcrypt.hash(password, 10);
+
+    const userPin = Math.floor(Math.random() * 9999);
+    
+    const newUser = {
+      username,
+      password: hashedPasswd,
+      firstName,
+      lastName,
+      email,
+      active: false,
+      userPin
+    };
+
+    let userVerification = await db.collection("Users").insertOne(newUser);
+
+    delete userVerification.acknowledged;
+
+    userVerification.pin = userPin;
+
+    // Email generation - pending approval for updated keys
+
+    // var client = new postmark.ServerClient(POSTMARK_KEY);
+
+    // client.sendEmail({
+    //   "From": "Overcastly@ucf.edu",
+    //   "To": "ian.justiz@ucf.edu",
+    //   "Subject": "Postmark Test",
+    //   "TextBody": "Hello IAN!!"
+    // });
+  
+    return res
+      .status(201)
+      .json(userVerification);
+
+  } catch (e) {
+    return res.status(500).json({ error: "A servar ewwow happend ;(" });
+  }
+});
+
+// ANCHOR Complete User Registration
+// Codes:
+//  200 (user registration complete)
+//  400 (missing input fields)
+//  403 (incorrect PIN given)
+//  404 (user not found)
+//  409 (user already registered)
+//  500 (generic error)
+app.post("/api/completeregisteruser/:_id", async (req, res) => {
+  // incoming: userPin, id
+  // outgoing: error
+
+  const { userPin } = req.body;
+
+  let _id = req.params._id;
+
+  // Verify necessary fields are provided
+  if (!userPin || !_id) {
+    return res.status(400).json({ error: "No user verification pin or ID provided" });
+  }
+
+  try {
+    // Fetch the user, verify they exist
+    let readUser = await db
+    .collection("Users")
+    .findOne({ _id: new ObjectId(_id) });
+
+    if (!readUser) {
+      return res.status(404).json({ error: "No user found with the given ID" });
+    }
+
+    // Active users cannot be activated again
+    if (readUser.active == true)
+    {
+      return res
+      .status(409)
+      .json({ error: "This user is already registered" });
+    }
+
+    // Check for users without a PIN field
+    if (!readUser.userPin) {
+      const result = await db.collection("Users").updateOne(
+        { _id: new ObjectId(_id) }, // searching for a specific id syntax
+        {
+          $set: {active:true}
+        });
+
+      return res
+      .status(200)
+      .json({ message: "User registration succesfully completed - no PIN field present" });
+    }
+
+    // If provided PIN is correct, try to register the user
+    if (userPin == readUser.userPin)
+    {
+      // Try to delete the PIN field
+      const result = await db.collection("Users").updateOne(
+        { _id: new ObjectId(_id) }, // searching for a specific id syntax
+        {
+          $unset: {userPin:''},
+          $set: {active:true}
+        });
+
+      return res
+      .status(200)
+      .json({ message: "User registration succesfully completed" });
+    }
+
+    // If we made it here, the PIN is incorrect
+    return res
+    .status(403)
+    .json({ error: "Incorrect PIN provided" });
+  
+
   } catch (e) {
     return res.status(500).json({ error: "A servar ewwow happend ;(" });
   }
