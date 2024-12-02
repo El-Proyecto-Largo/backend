@@ -104,7 +104,11 @@ app.post("/api/login", async (req, res) => {
     }
 
     if (user.hasOwnProperty('active') && user.active == false) {
-      return res.status(401).json({ error: "user has not yet been activated" });
+      return res.status(401).json({
+        userId: user._id,
+        active: false,
+        error: "user has not yet been activated"
+      });
     }
 
     const token = jwt.sign(
@@ -120,6 +124,7 @@ app.post("/api/login", async (req, res) => {
     return res.status(200).json({
       token,
       userId: user._id,
+      active: true,
       // username: user.username,
       // email: user.email,
       message: "User logged in",
