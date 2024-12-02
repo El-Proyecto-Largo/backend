@@ -273,7 +273,7 @@ app.post("/api/generalsearchposts", async (req, res) => {
       .find({
         $or: [
           { title: { $regex: search.trim() + ".*", $options: "i" } },
-          { body: { $regex: search.trim() + ".*", $options: "i" } }
+          // { body: { $regex: search.trim() + ".*", $options: "i" } }
         ],
       })
       .toArray();
