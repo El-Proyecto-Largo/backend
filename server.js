@@ -870,14 +870,14 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
     if (!readUser) {
       return res.status(404).json({ error: "User not found" });
     }
-    const hashedPrevPasswd = await bcrypt.hash(currPassword, 10);
 
-    if (readUser.password != hashedPrevPasswd) {
-      return res.status(403).json({ error: "Current password is incorect" });
+    const checkPassword = await bcrypt.compare(currPassword, readUser.password);
+
+    if (!checkPassword) {
+      return res.status(401).json({ error: "Current password is incorrect" });
     }
 
     const hashedPasswd = await bcrypt.hash(password, 10);
-
     const updatedFields = {};
 
     updatedFields.password = hashedPasswd;
