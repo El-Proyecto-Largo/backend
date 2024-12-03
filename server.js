@@ -848,10 +848,10 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
   // incoming: password
   // outgoing: success or error
 
-  const { password } = req.body;
+  const { currPassword, password } = req.body;
 
-  if (!password) {
-    return res.status(400).json({ error: "No password provided" });
+  if (!password || !currPassword) {
+    return res.status(400).json({ error: "No password or previous password provided" });
   }
 
   try {
@@ -870,12 +870,17 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
     if (!readUser) {
       return res.status(404).json({ error: "User not found" });
     }
+    const hashedPrevPasswd = await bcrypt.hash(currPassword, 10);
+
+    if (readUser.password != hashedPrevPasswd) {
+      return res.status(403).json({ error: "Current password is incorect" });
+    }
 
     const hashedPasswd = await bcrypt.hash(password, 10);
 
     const updatedFields = {};
 
-    updatedFields.passowrd = hashedPasswd;
+    updatedFields.password = hashedPasswd;
 
     const result = await db.collection("Users").updateOne(
       { _id: new ObjectId(_id) }, // searching for a specific id syntax
