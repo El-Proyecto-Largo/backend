@@ -347,7 +347,7 @@ app.post("/api/getlocalposts", async (req, res) => {
 //  500 (generic error)
 //
 app.get("/api/getpins", async (req, res) => {
-  // incoming: latitude, longitude, distance
+  // incoming: nonr
   // outgoing: id, title, body, image, latitude, longitude, authorId, tags
   // returns array of posts within distance of latitude and longitude
 
@@ -834,6 +834,59 @@ app.post("/api/completeregisteruser/:_id", async (req, res) => {
 
   } catch (e) {
     return res.status(500).json({ error: "A servar ewwow happend ;(" });
+  }
+});
+
+// ANCHOR Update Password
+// Codes:
+//  200 (password updated)
+//  400 (missing password)
+//  403 (ownership error)
+//  404 (user not found)
+//  500 (generic error)
+app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
+  // incoming: password
+  // outgoing: success or error
+
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ error: "No password provided" });
+  }
+
+  try {
+    let _id = req.params._id;
+
+    if (_id !== req.user.userId.toString()) {
+      return res
+        .status(403)
+        .json({ error: "Ownership error" });
+    }
+
+    let readUser = await db
+    .collection("Users")
+    .findOne({ _id: new ObjectId(_id) });
+
+    if (!readUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const hashedPasswd = await bcrypt.hash(password, 10);
+
+    const updatedFields = {};
+
+    updatedFields.passowrd = hashedPasswd;
+
+    const result = await db.collection("Users").updateOne(
+      { _id: new ObjectId(_id) }, // searching for a specific id syntax
+      {
+        $set: updatedFields
+      }
+    );
+
+    return res.status(200).json({ message: "Updated password successfully" });
+  } catch (e) {
+    return res.status(500).json({ error: "Server error in creation of user" });
   }
 });
 
