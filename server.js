@@ -85,7 +85,7 @@ app.post("/api/login", async (req, res) => {
   if (!login || !password) {
     return res
       .status(400)
-      .json({ error: "not all login fields were filled in vro" });
+      .json({ error: "Not all fields populated" });
   }
 
   // user can provide username or email
@@ -95,20 +95,20 @@ app.post("/api/login", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: "invalid credz" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const checkPassword = await bcrypt.compare(password, user.password);
 
     if (!checkPassword) {
-      return res.status(401).json({ error: "invalid credz" });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     if (user.hasOwnProperty('active') && user.active == false) {
       return res.status(401).json({
         userId: user._id,
         active: false,
-        error: "user has not yet been activated"
+        error: "User has not yet been activated"
       });
     }
 
@@ -131,7 +131,7 @@ app.post("/api/login", async (req, res) => {
       message: "User logged in",
     });
   } catch (error) {
-    return res.status(500).json({ error: "server error while tryna login" });
+    return res.status(500).json({ error: "Server error while attempting login" });
   }
 });
 
