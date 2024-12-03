@@ -719,7 +719,7 @@ app.post("/api/initialregisteruser", async (req, res) => {
 
     const hashedPasswd = await bcrypt.hash(password, 10);
 
-    const userPin = Math.floor(Math.random() * 9999);
+    const userPin = Math.floor(Math.random() * 8999) + 1000;
     
     const newUser = {
       username,
@@ -732,28 +732,29 @@ app.post("/api/initialregisteruser", async (req, res) => {
     };
 
     let userVerification = await db.collection("Users").insertOne(newUser);
-
     delete userVerification.acknowledged;
-
     userVerification.pin = userPin;
 
-    // Email generation - pending approval for updated keys
+    let key = process.env.POSTMARK_KEY;
 
-    // var client = new postmark.ServerClient(POSTMARK_KEY);
+    if (key != "0") {
+      var client = new postmark.ServerClient(key);
 
-    // client.sendEmail({
-    //   "From": "Overcastly@ucf.edu",
-    //   "To": "ian.justiz@ucf.edu",
-    //   "Subject": "Postmark Test",
-    //   "TextBody": "Hello IAN!!"
-    // });
-  
+      client.sendEmailWithTemplate({
+      "TemplateId": 38227984,
+      "From": "noreply@overcastly.app",
+      "To": email,
+      "TemplateModel": {	product_url: "overcastly.app", product_name:"Overcastly", company_name:"Overcastly", company_address:"Orlando, FL", name:firstName, user_pin:userPin.toString(), email:email, username:username}
+      });
+    }
+
+
     return res
-      .status(201)
-      .json(userVerification);
+    .status(201)
+    .json(userVerification);
 
   } catch (e) {
-    return res.status(500).json({ error: "A servar ewwow happend ;(" });
+    return res.status(500).json({ error: "Server error in creation of user" });
   }
 });
 
