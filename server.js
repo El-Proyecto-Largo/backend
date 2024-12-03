@@ -35,14 +35,14 @@ const authToken = (req, res, next) => {
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ error: "authentication failed wtf" });
+    return res.status(401).json({ error: "Authentication failed" });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       return res
         .status(403)
-        .json({ error: "ur token don't worky (is it expired??)" });
+        .json({ error: "Invalid token" });
     }
 
     req.user = user;
@@ -168,7 +168,7 @@ app.post("/api/createpost", authToken, async (req, res) => {
     const result = await db.collection("Posts").insertOne(newPost);
     return res.status(201).json({ postId: result["insertedId"] });
   } catch (error) {
-    return res.status(500).json( {error: "Could not make this post" });
+    return res.status(500).json( {error: "Could not make post" });
   }
 });
 
@@ -511,7 +511,7 @@ app.put("/api/updatepost/:_id", authToken, async (req, res) => {
     if (readPost.authorId.toString() !== req.user.userId.toString()) {
       return res
         .status(403)
-        .json({ error: "that aint yo post bruh u cant edit that" });
+        .json({ error: "Ownership error" });
     }
 
     const result = await db.collection("Posts").updateOne(
@@ -565,7 +565,7 @@ app.put("/api/updatereply/:_id", authToken, async (req, res) => {
     if (readPost.authorId.toString() !== req.user.userId.toString()) {
       return res
         .status(403)
-        .json({ error: "you cant update a reply that isnt yours silly" });
+        .json({ error: "Ownership error" });
     }
 
     const updateFields = {
@@ -609,14 +609,14 @@ app.delete("/api/deletepost/:_id", authToken, async (req, res) => {
     if (!foundPost) {
       return res
         .status(404)
-        .json({ error: "cant delete a post or reply that doesnt exist" });
+        .json({ error: "Can't delete a post or reply that doesn't exist" });
     }
 
     // check if logged in user is author of post
     if (foundPost.authorId.toString() !== req.user.userId.toString()) {
       return res
         .status(403)
-        .json({ error: "that aint yo post or reply bruh u cant delete that" });
+        .json({ error: "Ownership error" });
     }
 
     // delete replies
@@ -651,7 +651,7 @@ app.post("/api/registeruser", async (req, res) => {
   const { username, password, firstName, lastName, email } = req.body;
 
   if (!username || !password || !firstName || !lastName || !email) {
-    return res.status(400).json({ error: "Missing some register fields :((" });
+    return res.status(400).json({ error: "Missing some register fields :(" });
   }
 
   try {
@@ -662,8 +662,8 @@ app.post("/api/registeruser", async (req, res) => {
     if (existingUser) {
       const error =
         existingUser.username === username
-          ? "username already exists!"
-          : "email has already been registered to an account";
+          ? "Username already exists!"
+          : "Email has already been registered to an account";
 
       return res.status(409).json({ error });
     }
@@ -712,8 +712,8 @@ app.post("/api/initialregisteruser", async (req, res) => {
     if (existingUser) {
       const error =
         existingUser.username === username
-          ? "username already exists!"
-          : "email has already been registered to an account";
+          ? "Username already exists!"
+          : "Email has already been registered to an account";
 
       return res.status(409).json({ error });
     }
@@ -807,7 +807,7 @@ app.post("/api/completeregisteruser/:_id", async (req, res) => {
 
       return res
       .status(200)
-      .json({ message: "User registration succesfully completed - no PIN field present" });
+      .json({ message: "User registration successfully completed - no PIN field present" });
     }
 
     // If provided PIN is correct, try to register the user
@@ -823,7 +823,7 @@ app.post("/api/completeregisteruser/:_id", async (req, res) => {
 
       return res
       .status(200)
-      .json({ message: "User registration succesfully completed" });
+      .json({ message: "User registration successfully completed" });
     }
 
     // If we made it here, the PIN is incorrect
@@ -833,7 +833,7 @@ app.post("/api/completeregisteruser/:_id", async (req, res) => {
   
 
   } catch (e) {
-    return res.status(500).json({ error: "A servar ewwow happend ;(" });
+    return res.status(500).json({ error: "An internal server error occurred" });
   }
 });
 
@@ -995,7 +995,7 @@ app.get("/api/users/:_id", async (req, res) => {
 
     return res.status(200).json(readUser);
   } catch (e) {
-    return res.status(500).json({ error: "couldnt fetch user details wtf!!" });
+    return res.status(500).json({ error: "Unable to fetch user details" });
   }
 });
 
@@ -1016,7 +1016,7 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
     if (_id !== req.user.userId.toString()) {
       return res
         .status(403)
-        .json({ error: "you cant update a profile that isnt yours >:(" });
+        .json({ error: "Ownership error" });
     }
 
     const { username, firstName, lastName, email, image } = req.body;
@@ -1024,11 +1024,11 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
     if (!firstName && !lastName && !email && !username && !image) {
       return res
         .status(400)
-        .json({ error: "you need to provide a field to update bruh" });
+        .json({ error: "Missing fields" });
     }
 
     if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      return res.status(400).json({ error: "bro yo email format fricked up" });
+      return res.status(400).json({ error: "Invalid email format" });
     }
 
     let readUser = await db
@@ -1068,11 +1068,11 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
       }
     );
 
-    return res.status(200).json({ message: "updated dat user x3" });
+    return res.status(200).json({ message: "Updated user" });
   } catch (error) {
     return res
       .status(500)
-      .json({ error: "couldnt update user wtf hapepnd" });
+      .json({ error: "Unable to update user" });
   }
 });
 
