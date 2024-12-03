@@ -886,7 +886,7 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
 
     const { username, firstName, lastName, email, image } = req.body;
 
-    if (!firstName && !lastName && !email && !username) {
+    if (!firstName && !lastName && !email && !username && !image) {
       return res
         .status(400)
         .json({ error: "you need to provide a field to update bruh" });
