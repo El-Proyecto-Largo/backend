@@ -884,9 +884,9 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
         .json({ error: "you cant update a profile that isnt yours >:(" });
     }
 
-    const { firstName, lastName, email } = req.body;
+    const { username, firstName, lastName, email, image } = req.body;
 
-    if (!firstName && !lastName && !email) {
+    if (!firstName && !lastName && !email && !username) {
       return res
         .status(400)
         .json({ error: "you need to provide a field to update bruh" });
@@ -906,6 +906,10 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
 
     const updatedFields = {};
 
+    if (username) {
+      updatedFields.username = username;
+    }
+
     if (firstName) {
       updatedFields.firstName = firstName;
     }
@@ -916,6 +920,10 @@ app.put("/api/updateuser/:_id", authToken, async (req, res) => {
 
     if (email) {
       updatedFields.email = email;
+    }
+
+    if (image) {
+      updatedFields.image = image;
     }
 
     const result = await db.collection("Users").updateOne(
