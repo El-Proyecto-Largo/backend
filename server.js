@@ -11,6 +11,17 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const postmark = require("postmark");
 const crypto = require("crypto");
+const https = require("https");
+const port = process.env.PORT || 5000;
+const fs = require("fs");
+const path = require("path");
+
+// HTTPS credentials - Uncomment on server
+// const credentials = {
+//   key: fs.readFileSync("/etc/letsencrypt/live/overcastly.app/privkey.pem", "utf8"),
+//   cert: fs.readFileSync("/etc/letsencrypt/live/overcastly.app/cert.pem", "utf8"),
+//   ca: fs.readFileSync("/etc/letsencrypt/live/overcastly.app/chain.pem", "utf8"),
+// };
 
 // Database
 const { MongoClient, ObjectId } = require("mongodb");
@@ -1196,3 +1207,10 @@ app.use((req, res, next) => {
 });
 
 app.listen(5000); // start Node + Express server on port 5000
+
+// HTTPS server - Uncomment on server
+// const httpsServer = https.createServer(credentials, app);
+
+// httpsServer.listen(port, () => {
+// 	console.log(`Listening on ${port}.`);
+// });
