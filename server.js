@@ -10,6 +10,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const postmark = require("postmark");
+const crypto = require("crypto");
 
 // Database
 const { MongoClient, ObjectId } = require("mongodb");
@@ -841,6 +842,7 @@ app.post("/api/completeregisteruser/:_id", async (req, res) => {
 // Codes:
 //  200 (password updated)
 //  400 (missing password)
+//  401 (incorrect current password)
 //  403 (ownership error)
 //  404 (user not found)
 //  500 (generic error)
@@ -850,11 +852,13 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
 
   const { currPassword, password } = req.body;
 
+  // Verify a new password and previous password are provided
   if (!password || !currPassword) {
     return res.status(400).json({ error: "No password or previous password provided" });
   }
 
   try {
+    // Get user id and verify it is owned by the user
     let _id = req.params._id;
 
     if (_id !== req.user.userId.toString()) {
@@ -863,6 +867,7 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
         .json({ error: "Ownership error" });
     }
 
+    // Fetch the user, verify it exists
     let readUser = await db
     .collection("Users")
     .findOne({ _id: new ObjectId(_id) });
@@ -871,12 +876,14 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // Verify the previous password is good
     const checkPassword = await bcrypt.compare(currPassword, readUser.password);
 
     if (!checkPassword) {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
+    // Hash new password and update
     const hashedPasswd = await bcrypt.hash(password, 10);
     const updatedFields = {};
 
@@ -888,6 +895,76 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
         $set: updatedFields
       }
     );
+
+    return res.status(200).json({ message: "Updated password successfully" });
+  } catch (e) {
+    return res.status(500).json({ error: "Server error in creation of user" });
+  }
+});
+
+// ANCHOR Reset Password
+// Codes:
+//  200 (password updated)
+//  400 (missing password)
+//  401 (incorrect current password)
+//  403 (ownership error)
+//  404 (user not found)
+//  500 (generic error)
+app.post("/api/resetpassword", authToken, async (req, res) => {
+  // incoming: password
+  // outgoing: success or error
+
+  const { email } = req.body;
+
+  // Make sure email is given
+  if (!email ) {
+    return res.status(400).json({ error: "No email provided" });
+  }
+
+  try {
+    // Fetch user with email, verify is found
+    const existingUser = await db.collection("Users").findOne({
+      email: email,
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Get key, only update if email server configured
+    let key = process.env.POSTMARK_KEY;
+    if (key != "0") {
+
+      // Generate random password
+      const tempPass = crypto.randomBytes(8).toString('hex');
+
+      // Update password in the database
+      const hashedPasswd = await bcrypt.hash(tempPass, 10);
+      const updatedFields = {};
+
+      updatedFields.password = hashedPasswd;
+
+      const result = await db.collection("Users").updateOne(
+        { email: email }, // searching for a specific id syntax
+        {
+          $set: updatedFields
+        }
+      );
+
+      // Send email for new password
+      var client = new postmark.ServerClient(key);
+
+      client.sendEmailWithTemplate({
+      "TemplateId": 38229008,
+      "From": "noreply@overcastly.app",
+      "To": email,
+      "TemplateModel": {	product_url: "overcastly.app", product_name:"Overcastly", company_name:"Overcastly", company_address:"Orlando, FL", name:existingUser.firstName, user_pass:tempPass}
+      });
+    }
+    else {
+      return res.status(403).json({ error: "No API key for Postmark Email Service" });
+    }
+
 
     return res.status(200).json({ message: "Updated password successfully" });
   } catch (e) {
