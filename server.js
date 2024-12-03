@@ -732,14 +732,10 @@ app.post("/api/initialregisteruser", async (req, res) => {
       userPin
     };
 
-    let userVerification = await db.collection("Users").insertOne(newUser);
-    delete userVerification.acknowledged;
-    userVerification.pin = userPin;
-
     let key = process.env.POSTMARK_KEY;
 
     if (key != "0") {
-      var client = new postmark.ServerClient(key);
+      const client = new postmark.ServerClient(key);
 
       client.sendEmailWithTemplate({
       "TemplateId": 38227984,
@@ -749,6 +745,9 @@ app.post("/api/initialregisteruser", async (req, res) => {
       });
     }
 
+    let userVerification = await db.collection("Users").insertOne(newUser);
+    delete userVerification.acknowledged;
+    userVerification.pin = userPin;
 
     return res
     .status(201)
@@ -910,8 +909,8 @@ app.post("/api/updatepassword/:_id", authToken, async (req, res) => {
 //  403 (ownership error)
 //  404 (user not found)
 //  500 (generic error)
-app.post("/api/resetpassword", authToken, async (req, res) => {
-  // incoming: password
+app.post("/api/resetpassword", async (req, res) => {
+  // incoming: email
   // outgoing: success or error
 
   const { email } = req.body;
@@ -952,7 +951,7 @@ app.post("/api/resetpassword", authToken, async (req, res) => {
       );
 
       // Send email for new password
-      var client = new postmark.ServerClient(key);
+      const client = new postmark.ServerClient(key);
 
       client.sendEmailWithTemplate({
       "TemplateId": 38229008,
